@@ -1,7 +1,9 @@
 import { useState, type FormEvent } from 'react';
 import { Printer, Search } from 'lucide-react';
-import type { SubmittedApplicationRecord } from '../types/application.ts';
-import { trackApplicationApi } from '../utils/apiClient.ts';
+import {
+  trackApplicationApi,
+  type TrackedApplicationResult,
+} from '../utils/apiClient.ts';
 import { formatThaiDateTime } from '../utils/applicationHelpers.ts';
 import { PrintableApplicationSheet } from './PrintableApplicationSheet.tsx';
 
@@ -14,7 +16,7 @@ export function StatusTrackerView({ initialCode = '' }: StatusTrackerViewProps) 
   const [phone, setPhone] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<SubmittedApplicationRecord | null>(null);
+  const [result, setResult] = useState<TrackedApplicationResult | null>(null);
 
   const handleSearch = async (e: FormEvent) => {
     e.preventDefault();
@@ -31,9 +33,18 @@ export function StatusTrackerView({ initialCode = '' }: StatusTrackerViewProps) 
       const found = await trackApplicationApi(code, phone);
       setResult(found);
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : 'ไม่สามารถเชื่อมต่อระบบตรวจสอบสถานะได้ในขณะนี้'
-      );
+      let msg = 'ไม่สามารถเชื่อมต่อระบบตรวจสอบสถานะได้ในขณะนี้';
+      if (err instanceof Error) {
+        try {
+          const parsed = JSON.parse(err.message) as { error?: string };
+          msg = parsed?.error
+            ? 'ไม่สามารถเข้าถึงสถานะใบสมัครจากระบบฐานข้อมูลได้ในขณะนี้'
+            : err.message;
+        } catch {
+          msg = err.message;
+        }
+      }
+      setError(msg);
     } finally {
       setLoading(false);
     }
@@ -117,22 +128,26 @@ export function StatusTrackerView({ initialCode = '' }: StatusTrackerViewProps) 
                 )}
               </div>
 
-              <button
-                type="button"
-                onClick={() => window.print()}
-                className="btn-lift inline-flex min-h-[44px] items-center gap-2 rounded-xl bg-teal-800 px-5 py-2.5 text-sm font-medium text-white hover:bg-teal-900 cursor-pointer"
-              >
-                <Printer className="h-4 w-4" />
-                <span>พิมพ์ใบสมัคร</span>
-              </button>
+              {!result.statusOnly && (
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  className="btn-lift inline-flex min-h-[44px] items-center gap-2 rounded-xl bg-teal-800 px-5 py-2.5 text-sm font-medium text-white hover:bg-teal-900 cursor-pointer"
+                >
+                  <Printer className="h-4 w-4" />
+                  <span>พิมพ์ใบสมัคร</span>
+                </button>
+              )}
             </div>
           </div>
 
-          <PrintableApplicationSheet
-            data={result}
-            applicationId={result.applicationId}
-            submittedAt={result.submittedAt}
-          />
+          {!result.statusOnly && (
+            <PrintableApplicationSheet
+              data={result}
+              applicationId={result.applicationId}
+              submittedAt={result.submittedAt}
+            />
+          )}
         </div>
       )}
     </div>

@@ -1,10 +1,17 @@
-import { useEffect, useState } from 'react';
-import { ExternalLink, FileText, LogOut, Printer, RefreshCw } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { onAuthStateChanged, type User } from 'firebase/auth';
+import { ExternalLink, FileText, LogIn, LogOut, Printer, RefreshCw } from 'lucide-react';
+import { auth, signInHrWithGoogle, signOutHrGoogle } from '../firebase.ts';
 import type {
   ApplicationStatus,
   SubmittedApplicationRecord,
 } from '../types/application.ts';
-import { listApplicationsApi, updateApplicationStatusApi } from '../utils/apiClient.ts';
+import {
+  isVerifiedBootstrappedAdmin,
+  listApplicationsApi,
+  subscribeNurseRegistrations,
+  updateApplicationStatusApi,
+} from '../utils/apiClient.ts';
 import { formatBytes, formatThaiDateTime } from '../utils/applicationHelpers.ts';
 import { PrintableApplicationSheet } from './PrintableApplicationSheet.tsx';
 
@@ -20,33 +27,95 @@ interface HrReviewViewProps {
 }
 
 export function HrReviewView({ onLogout }: HrReviewViewProps) {
-  const [applications, setApplications] = useState<SubmittedApplicationRecord[]>([]);
+  const [localApplications, setLocalApplications] = useState<SubmittedApplicationRecord[]>([]);
+  const [cloudApplications, setCloudApplications] = useState<SubmittedApplicationRecord[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [savingStatus, setSavingStatus] = useState(false);
   const [noteDraft, setNoteDraft] = useState('');
 
-  const fetchApplications = async () => {
+  const [authReady, setAuthReady] = useState(false);
+  const [firebaseUser, setFirebaseUser] = useState<User | null>(null);
+  const [authBusy, setAuthBusy] = useState(false);
+  const [authWarning, setAuthWarning] = useState<string | null>(null);
+
+  const isCloudAdmin = Boolean(
+    authReady &&
+      firebaseUser &&
+      isVerifiedBootstrappedAdmin(firebaseUser.email, firebaseUser.emailVerified)
+  );
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setFirebaseUser(user);
+      setAuthReady(true);
+      if (user && !isVerifiedBootstrappedAdmin(user.email, user.emailVerified)) {
+        setAuthWarning('บัญชี Google นี้ไม่มีสิทธิ์ผู้ดูแล HR ในระบบฐานข้อมูลคลาวด์');
+      } else {
+        setAuthWarning(null);
+      }
+    });
+    return unsubscribe;
+  }, []);
+
+  useEffect(() => {
+    if (!isCloudAdmin) {
+      setCloudApplications([]);
+      return;
+    }
+    const unsubscribe = subscribeNurseRegistrations((records) => {
+      setCloudApplications(records);
+    });
+    return unsubscribe;
+  }, [isCloudAdmin]);
+
+  const fetchApplications = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
       const list = await listApplicationsApi();
-      setApplications(list);
-      if (list.length > 0 && !selectedId) {
-        setSelectedId(list[0].applicationId);
-        setNoteDraft(list[0].hrNote || '');
-      }
+      setLocalApplications(list);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'เกิดข้อผิดพลาดในการโหลดข้อมูล');
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     void fetchApplications();
-  }, []);
+  }, [fetchApplications]);
+
+  const applications = useMemo(() => {
+    const byId = new Map<string, SubmittedApplicationRecord>();
+    for (const local of localApplications) {
+      byId.set(local.applicationId, local);
+    }
+    for (const cloud of cloudApplications) {
+      const existing = byId.get(cloud.applicationId);
+      if (existing) {
+        // Merge fileUrl/dataUrl from local Express storage when Firestore stores metadata
+        const mergedDocs = cloud.documents.map((cd) => {
+          const matched = existing.documents.find((ld) => ld.id === cd.id);
+          return matched ? { ...cd, fileUrl: cd.fileUrl || matched.fileUrl, dataUrl: matched.dataUrl } : cd;
+        });
+        byId.set(cloud.applicationId, { ...cloud, documents: mergedDocs });
+      } else {
+        byId.set(cloud.applicationId, cloud);
+      }
+    }
+    return Array.from(byId.values()).sort(
+      (a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime()
+    );
+  }, [localApplications, cloudApplications]);
+
+  useEffect(() => {
+    if (applications.length > 0 && !selectedId) {
+      setSelectedId(applications[0].applicationId);
+      setNoteDraft(applications[0].hrNote || '');
+    }
+  }, [applications, selectedId]);
 
   const selectedApp =
     applications.find((a) => a.applicationId === selectedId) ?? applications[0] ?? null;
@@ -56,22 +125,69 @@ export function HrReviewView({ onLogout }: HrReviewViewProps) {
     setNoteDraft(app.hrNote || '');
   };
 
+  const handleGoogleSignIn = async () => {
+    setAuthBusy(true);
+    setAuthWarning(null);
+    try {
+      await signInHrWithGoogle();
+    } catch (err) {
+      setAuthWarning(
+        err instanceof Error ? 'ไม่สามารถเข้าสู่ระบบ Google ได้ กรุณาลองใหม่อีกครั้ง' : 'เข้าสู่ระบบไม่สำเร็จ'
+      );
+    } finally {
+      setAuthBusy(false);
+    }
+  };
+
+  const handleLogoutClick = async () => {
+    try {
+      if (auth.currentUser) {
+        await signOutHrGoogle();
+      }
+    } catch {
+      // Ignore sign-out errors on lock
+    }
+    onLogout();
+  };
+
   const handleUpdateStatus = async (status: ApplicationStatus) => {
     if (!selectedApp) return;
     setSavingStatus(true);
+    setError(null);
     try {
       const updated = await updateApplicationStatusApi(
         selectedApp.applicationId,
         status,
         noteDraft
       );
-      if (updated) {
-        setApplications((prev) =>
-          prev.map((item) =>
-            item.applicationId === updated.applicationId ? updated : item
-          )
-        );
+      const nextNote = noteDraft.trim();
+      setLocalApplications((prev) =>
+        prev.map((item) =>
+          item.applicationId === selectedApp.applicationId
+            ? updated ?? { ...item, status, hrNote: nextNote }
+            : item
+        )
+      );
+      setCloudApplications((prev) =>
+        prev.map((item) =>
+          item.applicationId === selectedApp.applicationId
+            ? { ...item, status, hrNote: nextNote }
+            : item
+        )
+      );
+    } catch (err) {
+      let msg = 'ไม่สามารถอัปเดตสถานะได้ กรุณาลองใหม่อีกครั้ง';
+      if (err instanceof Error) {
+        try {
+          const parsed = JSON.parse(err.message) as { error?: string };
+          if (parsed?.error) {
+            msg = 'บัญชีที่ใช้งานยังไม่มีสิทธิ์อัปเดตสถานะในฐานข้อมูล Firebase';
+          }
+        } catch {
+          msg = err.message;
+        }
       }
+      setError(msg);
     } finally {
       setSavingStatus(false);
     }
@@ -92,6 +208,18 @@ export function HrReviewView({ onLogout }: HrReviewViewProps) {
           </div>
 
           <div className="flex flex-wrap items-center gap-2.5">
+            {!isCloudAdmin && (
+              <button
+                type="button"
+                disabled={authBusy}
+                onClick={() => void handleGoogleSignIn()}
+                className="btn-lift inline-flex min-h-[42px] items-center gap-2 rounded-xl border border-teal-800/25 bg-teal-50/90 px-4 py-2 text-sm font-medium text-teal-950 hover:bg-teal-100 disabled:opacity-60 cursor-pointer"
+              >
+                <LogIn className="h-4 w-4 text-teal-800" />
+                <span>{authBusy ? 'กำลังเชื่อมต่อ...' : 'ซิงค์ฐานข้อมูล Firebase'}</span>
+              </button>
+            )}
+
             <button
               type="button"
               onClick={() => void fetchApplications()}
@@ -103,7 +231,7 @@ export function HrReviewView({ onLogout }: HrReviewViewProps) {
 
             <button
               type="button"
-              onClick={onLogout}
+              onClick={() => void handleLogoutClick()}
               className="btn-lift inline-flex min-h-[42px] items-center gap-2 rounded-xl border border-rose-200 bg-rose-50/90 px-4 py-2 text-sm font-medium text-rose-800 hover:bg-rose-100 cursor-pointer"
             >
               <LogOut className="h-4 w-4" />
@@ -112,7 +240,13 @@ export function HrReviewView({ onLogout }: HrReviewViewProps) {
           </div>
         </div>
 
-        {loading && (
+        {authWarning && (
+          <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            {authWarning}
+          </div>
+        )}
+
+        {loading && applications.length === 0 && (
           <p className="py-12 text-center text-sm text-teal-900/75">กำลังโหลดข้อมูลใบสมัคร...</p>
         )}
 
@@ -131,7 +265,7 @@ export function HrReviewView({ onLogout }: HrReviewViewProps) {
           </div>
         )}
 
-        {!loading && applications.length > 0 && (
+        {applications.length > 0 && (
           <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-12">
             {/* Applicant List */}
             <div className="space-y-2.5 lg:col-span-4">
@@ -234,7 +368,7 @@ export function HrReviewView({ onLogout }: HrReviewViewProps) {
                     <div className="mt-2.5 grid grid-cols-1 gap-2 sm:grid-cols-2">
                       {selectedApp.documents.map((doc) => {
                         const href = doc.fileUrl || doc.dataUrl;
-                        return (
+                        return href ? (
                           <a
                             key={doc.id}
                             href={href}
@@ -253,6 +387,21 @@ export function HrReviewView({ onLogout }: HrReviewViewProps) {
                             </div>
                             <ExternalLink className="h-3.5 w-3.5 shrink-0 text-teal-700" />
                           </a>
+                        ) : (
+                          <div
+                            key={doc.id}
+                            className="flex items-center justify-between gap-2 rounded-xl border border-teal-900/10 bg-white/70 px-3 py-2 text-xs"
+                          >
+                            <div className="flex min-w-0 items-center gap-2">
+                              <FileText className="h-4 w-4 shrink-0 text-teal-700" />
+                              <div className="min-w-0">
+                                <p className="truncate font-semibold text-teal-950">{doc.fileName}</p>
+                                <p className="truncate text-[11px] text-teal-900/65">
+                                  {doc.slotLabel} · {formatBytes(doc.sizeBytes)}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
                         );
                       })}
                     </div>

@@ -1,0 +1,216 @@
+{
+  "entities": {
+    "NurseRegistration": {
+      "title": "NurseRegistration",
+      "description": "Full nurse recruitment application record from Forms 1-5 stored in nurse_register.",
+      "type": "object",
+      "properties": {
+        "applicationId": {
+          "type": "string",
+          "description": "Unique application reference ID (e.g. MPV-2570-0001-ABC).",
+          "minLength": 5,
+          "maxLength": 64,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "status": {
+          "type": "string",
+          "description": "Current HR recruitment review status.",
+          "enum": [
+            "ได้รับใบสมัครแล้ว",
+            "อยู่ระหว่างตรวจสอบเอกสาร",
+            "ผ่านการคัดกรองเบื้องต้น",
+            "นัดหมายสัมภาษณ์"
+          ],
+          "maxLength": 64
+        },
+        "submittedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "ISO-8601 submission timestamp displayed to applicant and HR.",
+          "minLength": 10,
+          "maxLength": 64
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server-validated Firestore creation timestamp."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server-validated Firestore update timestamp."
+        },
+        "hrNote": {
+          "type": "string",
+          "description": "Optional note from HR reviewer for interview scheduling or remarks.",
+          "maxLength": 1000
+        },
+        "hasNoWorkExperience": {
+          "type": "boolean",
+          "description": "Whether the applicant indicated having no prior work experience."
+        },
+        "pdpaAccepted": {
+          "type": "boolean",
+          "description": "Applicant consent to PDPA processing."
+        },
+        "truthfulnessAccepted": {
+          "type": "boolean",
+          "description": "Applicant declaration of truthfulness."
+        },
+        "personalInfo": {
+          "type": "object",
+          "description": "Form 1 personal details, contact information, and addresses."
+        },
+        "workExperiences": {
+          "type": "array",
+          "description": "Form 2 bounded list of prior work experience entries (max 15)."
+        },
+        "educationBackground": {
+          "type": "array",
+          "description": "Form 2 bounded list of education history rows (1-8)."
+        },
+        "nursingQualification": {
+          "type": "object",
+          "description": "Form 3 professional nursing license and clinical readiness details."
+        },
+        "emergencyContact": {
+          "type": "object",
+          "description": "Form 3 emergency contact person details."
+        },
+        "documents": {
+          "type": "array",
+          "description": "Form 4 bounded list of uploaded document metadata items (max 10)."
+        }
+      },
+      "required": [
+        "applicationId",
+        "status",
+        "submittedAt",
+        "createdAt",
+        "updatedAt",
+        "hasNoWorkExperience",
+        "pdpaAccepted",
+        "truthfulnessAccepted",
+        "personalInfo",
+        "workExperiences",
+        "educationBackground",
+        "nursingQualification",
+        "emergencyContact",
+        "documents"
+      ]
+    },
+    "NurseRegistrationStatus": {
+      "title": "NurseRegistrationStatus",
+      "description": "Non-PII public status tracking projection paired atomically with NurseRegistration.",
+      "type": "object",
+      "properties": {
+        "applicationId": {
+          "type": "string",
+          "description": "Unique application reference ID.",
+          "minLength": 5,
+          "maxLength": 64,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "status": {
+          "type": "string",
+          "description": "Current HR review status.",
+          "enum": [
+            "ได้รับใบสมัครแล้ว",
+            "อยู่ระหว่างตรวจสอบเอกสาร",
+            "ผ่านการคัดกรองเบื้องต้น",
+            "นัดหมายสัมภาษณ์"
+          ],
+          "maxLength": 64
+        },
+        "submittedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "ISO-8601 submission timestamp.",
+          "minLength": 10,
+          "maxLength": 64
+        },
+        "mobileHash": {
+          "type": "string",
+          "description": "SHA-256 verification digest of applicationId and normalized mobile number.",
+          "minLength": 64,
+          "maxLength": 64,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "hrNote": {
+          "type": "string",
+          "description": "Optional non-PII status note from HR.",
+          "maxLength": 1000
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server-validated Firestore creation timestamp."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server-validated Firestore update timestamp."
+        }
+      },
+      "required": [
+        "applicationId",
+        "status",
+        "submittedAt",
+        "mobileHash",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "AdminUser": {
+      "title": "AdminUser",
+      "description": "Authorized HR administrator record for reading and reviewing nurse applications.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "Firebase Auth UID of the HR admin.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "description": "Verified email address of the HR admin.",
+          "minLength": 3,
+          "maxLength": 150
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server-validated Firestore creation timestamp."
+        }
+      },
+      "required": [
+        "uid",
+        "email",
+        "createdAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/nurse_register/{applicationId}": {
+      "schema": {
+        "$ref": "#/entities/NurseRegistration"
+      },
+      "description": "Stores full Forms 1-5 nurse recruitment applications submitted by applicants; readable and updatable exclusively by verified HR admins."
+    },
+    "/nurse_register_status/{applicationId}": {
+      "schema": {
+        "$ref": "#/entities/NurseRegistrationStatus"
+      },
+      "description": "Non-PII status tracking summary created atomically with nurse_register so applicants can check status without exposing PII."
+    },
+    "/admins/{userId}": {
+      "schema": {
+        "$ref": "#/entities/AdminUser"
+      },
+      "description": "Authorized HR admin registry."
+    }
+  }
+}

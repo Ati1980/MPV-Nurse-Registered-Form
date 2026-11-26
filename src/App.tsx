@@ -214,9 +214,20 @@ export default function App() {
       }
       scrollToTop();
     } catch (err) {
-      setSubmitError(
-        err instanceof Error ? err.message : 'ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์เพื่อส่งใบสมัครได้'
-      );
+      let friendly = 'ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์เพื่อส่งใบสมัครได้';
+      if (err instanceof Error) {
+        try {
+          const parsed = JSON.parse(err.message) as { error?: string };
+          if (parsed?.error) {
+            friendly = 'ไม่สามารถบันทึกใบสมัครไปยังฐานข้อมูล Firebase ได้ กรุณาตรวจสอบข้อมูลและลองใหม่อีกครั้ง';
+          } else {
+            friendly = err.message;
+          }
+        } catch {
+          friendly = err.message;
+        }
+      }
+      setSubmitError(friendly);
     } finally {
       setIsSubmitting(false);
     }

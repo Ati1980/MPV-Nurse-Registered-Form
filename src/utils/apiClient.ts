@@ -2,6 +2,7 @@ import {
   collection,
   doc,
   getDoc,
+  getDocs,
   onSnapshot,
   orderBy,
   query,
@@ -290,7 +291,9 @@ export async function submitApplicationApi(
     status: 'ได้รับใบสมัครแล้ว',
   };
 
-  // Persist Forms 1-5 to Firebase Firestore (`nurse_register` + atomic `nurse_register_status`)
+  // Persist Forms 1-5 to Firebase Firestore (`nurse_register` + atomic `nurse_register_status` + `files` subcollection)
+  const sourceDocsById = new Map((formData.documents || []).map((d) => [d.id, d]));
+
   if (db) {
     const firestoreData = buildSanitizedFirestoreRecord(record);
     const mobileHash = await computeMobileHash(
@@ -316,14 +319,44 @@ export async function submitApplicationApi(
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       });
+
+      for (const cleanDoc of firestoreData.documents) {
+        const safeDocId = cleanDoc.id.replace(/[^a-zA-Z0-9_-]/g, '-');
+        const originalDoc = sourceDocsById.get(cleanDoc.id);
+        const dataUrl = originalDoc?.dataUrl;
+        if (dataUrl && dataUrl.startsWith('data:') && dataUrl.length <= 880_000 && safeDocId) {
+          batch.set(
+            doc(db, NURSE_REGISTER_COLLECTION, firestoreData.applicationId, 'files', safeDocId),
+            {
+              id: safeDocId,
+              applicationId: firestoreData.applicationId,
+              slotKey: cleanDoc.slotKey,
+              fileName: cleanDoc.fileName,
+              mimeType: cleanDoc.mimeType,
+              sizeBytes: cleanDoc.sizeBytes,
+              dataUrl,
+              createdAt: serverTimestamp(),
+            }
+          );
+        }
+      }
+
       await batch.commit();
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, `${registerPath} & ${statusPath}`);
     }
   }
 
+  const recordWithLocalData: SubmittedApplicationRecord = {
+    ...record,
+    documents: record.documents.map((d) => {
+      const original = sourceDocsById.get(d.id);
+      return original?.dataUrl && !d.dataUrl ? { ...d, dataUrl: original.dataUrl } : d;
+    }),
+  };
+
   const deduped = existing.filter((r) => r.applicationId !== record.applicationId);
-  writeLocalRecords([record, ...deduped]);
+  writeLocalRecords([recordWithLocalData, ...deduped]);
   return record;
 }
 
@@ -559,6 +592,148 @@ export async function updateApplicationStatusApi(
   }
 
   return serverUpdated;
+}
+
+function dataUrlToBlob(dataUrl: string): Blob | null {
+  const match = /^data:([^;]+);base64,(.+)$/.exec(dataUrl);
+  if (!match) return null;
+  const mimeType = match[1];
+  const binaryStr = atob(match[2]);
+  const len = binaryStr.length;
+  const bytes = new Uint8Array(len);
+  for (let i = 0; i < len; i += 1) {
+    bytes[i] = binaryStr.charCodeAt(i);
+  }
+  return new Blob([bytes], { type: mimeType });
+}
+
+export async function resolveApplicationFileApi(
+  applicationId: string,
+  fileDoc: UploadedDocumentItem
+): Promise<{ objectUrl: string; mimeType: string } | null> {
+  // 1. In-memory / local dataUrl
+  if (fileDoc.dataUrl && fileDoc.dataUrl.startsWith('data:')) {
+    const blob = dataUrlToBlob(fileDoc.dataUrl);
+    if (blob) {
+      return {
+        objectUrl: URL.createObjectURL(blob),
+        mimeType: blob.type || fileDoc.mimeType,
+      };
+    }
+  }
+
+  // 2. Express uploaded file endpoint (verify it is not an HTML SPA fallback or JSON 404)
+  if (fileDoc.fileUrl) {
+    try {
+      const res = await fetch(fileDoc.fileUrl);
+      const contentType = res.headers.get('content-type') || '';
+      if (
+        res.ok &&
+        !contentType.includes('text/html') &&
+        !contentType.includes('application/json')
+      ) {
+        const blob = await res.blob();
+        return {
+          objectUrl: URL.createObjectURL(blob),
+          mimeType: blob.type || fileDoc.mimeType,
+        };
+      }
+    } catch {
+      // Fall through to Firestore subcollection lookup
+    }
+  }
+
+  // 3. Firestore `/nurse_register/{applicationId}/files/{docId}` subcollection
+  if (db && auth?.currentUser && auth.currentUser.emailVerified) {
+    const safeDocId = fileDoc.id.replace(/[^a-zA-Z0-9_-]/g, '-');
+    const filePath = `${NURSE_REGISTER_COLLECTION}/${applicationId}/files/${safeDocId}`;
+    try {
+      const snap = await getDoc(
+        doc(db, NURSE_REGISTER_COLLECTION, applicationId, 'files', safeDocId)
+      );
+      if (snap.exists()) {
+        const stored = snap.data() as { dataUrl?: string; mimeType?: string };
+        if (stored.dataUrl) {
+          const blob = dataUrlToBlob(stored.dataUrl);
+          if (blob) {
+            return {
+              objectUrl: URL.createObjectURL(blob),
+              mimeType: stored.mimeType || blob.type || fileDoc.mimeType,
+            };
+          }
+        }
+      }
+    } catch (error) {
+      handleFirestoreError(error, OperationType.GET, filePath);
+    }
+  }
+
+  // 4. LocalStorage fallback by applicationId + docId
+  const localRecords = readLocalRecords();
+  const matchedApp = localRecords.find((r) => r.applicationId === applicationId);
+  const matchedDoc = matchedApp?.documents.find((d) => d.id === fileDoc.id);
+  if (matchedDoc?.dataUrl && matchedDoc.dataUrl.startsWith('data:')) {
+    const blob = dataUrlToBlob(matchedDoc.dataUrl);
+    if (blob) {
+      return {
+        objectUrl: URL.createObjectURL(blob),
+        mimeType: blob.type || fileDoc.mimeType,
+      };
+    }
+  }
+
+  return null;
+}
+
+export async function deleteApplicationApi(
+  applicationId: string,
+  docIds: string[] = []
+): Promise<void> {
+  // 1. Delete from Express backend when available
+  try {
+    await fetch(`/api/applications/${encodeURIComponent(applicationId)}`, {
+      method: 'DELETE',
+    });
+  } catch {
+    // Ignore local Express miss on static hosting
+  }
+
+  // 2. Delete from Firestore (`files` subcollection + `nurse_register` + `nurse_register_status`)
+  if (db && auth?.currentUser && auth.currentUser.emailVerified) {
+    const fileIds = new Set(
+      docIds.map((id) => id.replace(/[^a-zA-Z0-9_-]/g, '-')).filter(Boolean)
+    );
+
+    if (isVerifiedBootstrappedAdmin(auth.currentUser.email, auth.currentUser.emailVerified)) {
+      try {
+        const filesSnap = await getDocs(
+          collection(db, NURSE_REGISTER_COLLECTION, applicationId, 'files')
+        );
+        filesSnap.forEach((fileDoc) => {
+          fileIds.add(fileDoc.id);
+        });
+      } catch {
+        // Fallback to deleting known docIds if subcollection list fails
+      }
+    }
+
+    const deletePath = `${NURSE_REGISTER_COLLECTION}/${applicationId}`;
+    try {
+      const batch = writeBatch(db);
+      for (const fileId of fileIds) {
+        batch.delete(doc(db, NURSE_REGISTER_COLLECTION, applicationId, 'files', fileId));
+      }
+      batch.delete(doc(db, NURSE_REGISTER_COLLECTION, applicationId));
+      batch.delete(doc(db, NURSE_REGISTER_STATUS_COLLECTION, applicationId));
+      await batch.commit();
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, deletePath);
+    }
+  }
+
+  // 3. Remove from localStorage fallback
+  const records = readLocalRecords();
+  writeLocalRecords(records.filter((r) => r.applicationId !== applicationId));
 }
 
 export async function verifyHrPinApi(pin: string): Promise<boolean> {

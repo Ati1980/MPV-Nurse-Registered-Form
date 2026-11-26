@@ -36,6 +36,55 @@ export function StepDocuments({
       reader.readAsDataURL(file);
     });
 
+  const compressImageIfNeeded = async (
+    file: File,
+    rawDataUrl: string
+  ): Promise<{ dataUrl: string; mimeType: string; sizeBytes: number }> => {
+    if (!file.type.startsWith('image/') || rawDataUrl.length <= 340_000) {
+      return { dataUrl: rawDataUrl, mimeType: file.type, sizeBytes: file.size };
+    }
+
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        const maxDim = 1400;
+        let { width, height } = img;
+        if (width > maxDim || height > maxDim) {
+          const ratio = Math.min(maxDim / width, maxDim / height);
+          width = Math.max(1, Math.round(width * ratio));
+          height = Math.max(1, Math.round(height * ratio));
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          resolve({ dataUrl: rawDataUrl, mimeType: file.type, sizeBytes: file.size });
+          return;
+        }
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, width, height);
+        ctx.drawImage(img, 0, 0, width, height);
+
+        let compressed = canvas.toDataURL('image/jpeg', 0.8);
+        if (compressed.length > 750_000) {
+          compressed = canvas.toDataURL('image/jpeg', 0.62);
+        }
+        const approxBytes = Math.round((compressed.length * 3) / 4);
+        resolve({
+          dataUrl: compressed,
+          mimeType: 'image/jpeg',
+          sizeBytes: Math.min(file.size, approxBytes),
+        });
+      };
+      img.onerror = () => {
+        resolve({ dataUrl: rawDataUrl, mimeType: file.type, sizeBytes: file.size });
+      };
+      img.src = rawDataUrl;
+    });
+  };
+
   const handleFilesForSlot = async (slotKey: DocumentSlotKey, fileList: FileList | null) => {
     if (!fileList || fileList.length === 0) return;
     setUploadAlert(null);
@@ -66,15 +115,16 @@ export function StepDocuments({
       }
 
       try {
-        const dataUrl = await readFileAsDataUrl(file);
+        const rawDataUrl = await readFileAsDataUrl(file);
+        const processed = await compressImageIfNeeded(file, rawDataUrl);
         newDocs.push({
           id: `doc-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
           slotKey,
           slotLabel: spec.title,
           fileName: file.name,
-          mimeType: file.type,
-          sizeBytes: file.size,
-          dataUrl,
+          mimeType: processed.mimeType,
+          sizeBytes: processed.sizeBytes,
+          dataUrl: processed.dataUrl,
           uploadedAt: new Date().toISOString(),
         });
       } catch {

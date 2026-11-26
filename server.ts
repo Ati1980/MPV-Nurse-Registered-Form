@@ -262,6 +262,33 @@ async function startServer(): Promise<void> {
     res.json({ application: records[index] });
   });
 
+  app.delete('/api/applications/:id', (req, res) => {
+    const targetId = req.params.id;
+    if (!targetId || typeof targetId !== 'string') {
+      res.status(400).json({ error: 'รหัสใบสมัครไม่ถูกต้อง' });
+      return;
+    }
+
+    const records = readApplications();
+    const filtered = records.filter((r) => r.applicationId !== targetId);
+    const removedLocal = filtered.length !== records.length;
+    if (removedLocal) {
+      writeApplications(filtered);
+    }
+
+    const safeAppId = sanitizeSegment(targetId);
+    const appUploadDir = path.join(UPLOADS_DIR, safeAppId);
+    if (
+      safeAppId &&
+      appUploadDir.startsWith(UPLOADS_DIR + path.sep) &&
+      fs.existsSync(appUploadDir)
+    ) {
+      fs.rmSync(appUploadDir, { recursive: true, force: true });
+    }
+
+    res.json({ success: true, removedLocal });
+  });
+
   const isProd = process.env.NODE_ENV === 'production' && fs.existsSync(path.resolve('dist'));
   if (!isProd) {
     const { createServer: createViteServer } = await import('vite');

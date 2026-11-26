@@ -286,8 +286,12 @@
     break-inside: avoid;
     page-break-inside: avoid;
   }
+  .contract-attachment-page {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
 }
 
 .font-contract {
-  font-family: "Sarabun", "IBM Plex Sans Thai", sans-serif;
+  font-family: "DilleniaUPC", "Sarabun", "IBM Plex Sans Thai", sans-serif;
 }

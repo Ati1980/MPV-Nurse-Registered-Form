@@ -1,7 +1,27 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Printer, RotateCcw, X } from 'lucide-react';
-import type { SubmittedApplicationRecord } from '../types/application.ts';
+import { Loader2, Printer, RotateCcw, X } from 'lucide-react';
+import type { DocumentSlotKey, SubmittedApplicationRecord } from '../types/application.ts';
+import { resolveApplicationFileApi } from '../utils/apiClient.ts';
+import { renderPdfBlobToImageUrls } from '../utils/pdfRenderHelper.ts';
+
+const CONTRACT_ATTACHMENT_SLOTS: Array<{
+  slotKey: DocumentSlotKey;
+  label: string;
+}> = [
+  { slotKey: 'idCard', label: 'สำเนาบัตรประจำตัวประชาชน' },
+  { slotKey: 'houseReg', label: 'สำเนาทะเบียนบ้าน' },
+  { slotKey: 'nursingLicense', label: 'สำเนาใบอนุญาตประกอบวิชาชีพการพยาบาลฯ' },
+  { slotKey: 'bankBook', label: 'สำเนาสมุดบัญชีธนาคาร' },
+];
+
+interface ResolvedContractAttachment {
+  slotKey: DocumentSlotKey;
+  label: string;
+  fileName?: string;
+  status: 'loading' | 'ready' | 'missing' | 'unavailable';
+  imageUrls: string[];
+}
 
 export interface ContractFields {
   location: string;
@@ -42,7 +62,7 @@ function buildInitialContractFields(app: SubmittedApplicationRecord): ContractFi
     location: 'บริษัท รวมเกษตรกรอุตสาหกรรม จำกัด สาขามิตรภูเวียง',
     contractDate: '1 มกราคม 2570',
     companyName: 'บริษัท รวมเกษตรกรอุตสาหกรรม จำกัด สาขามิตรภูเวียง',
-    authorizedPerson: 'นายวีระศักดิ์ พลอาจ',
+    authorizedPerson: 'นายภิมะ วิจิตรเฉลิมพงษ์',
     authorizedPosition: 'ผู้อำนวยการด้านโรงงานน้ำตาลมิตรภูเวียง',
     contractorName: fullName || '-',
     contractorIdCard: app.personalInfo.idCardOrPassport || '-',
@@ -81,17 +101,17 @@ function EditableSpan({ value }: { value: string }) {
 
 function ContractDocumentSet({ label, fields }: ContractDocumentSetProps) {
   return (
-    <article className="font-contract text-[15px] leading-[1.8] text-black">
+    <article className="font-contract text-[19px] leading-[1.45] text-black">
       {/* Top-right stamp */}
-      <div className="flex justify-end text-[17px] font-semibold">{label}</div>
+      <div className="flex justify-end text-[21px] font-bold">{label}</div>
 
       {/* Title */}
-      <h2 className="mt-1 text-center text-[17px] font-bold">
+      <h2 className="mt-1 text-center text-[22px] font-bold">
         หนังสือสัญญาว่าจ้างพยาบาลวิชาชีพ (Part-Time)
       </h2>
 
       {/* Location & Date */}
-      <div className="mt-2 flex flex-col items-end text-[15px]">
+      <div className="mt-2 flex flex-col items-end text-[19px]">
         <p>
           ทำ ที่ <EditableSpan value={fields.location} />
         </p>
@@ -244,7 +264,7 @@ function ContractDocumentSet({ label, fields }: ContractDocumentSetProps) {
           ทั้งสองฝ่ายได้อ่านและเข้าใจข้อความของสัญญาฉบับนี้เป็นอย่างดีแล้ว จึงลงลายมือชื่อไว้เป็นหลักฐาน
         </p>
 
-        <div className="mt-12 grid grid-cols-2 gap-x-8 gap-y-12 text-[15px]">
+        <div className="mt-12 grid grid-cols-2 gap-x-8 gap-y-12 text-[19px]">
           <div className="text-center">
             <p>ลงชื่อ..........................................ผู้รับมอบอำนาจของบริษัทฯ</p>
             <p className="mt-1">
@@ -287,12 +307,141 @@ interface ContractPrintModalProps {
 export function ContractPrintModal({ open, applicant, onClose }: ContractPrintModalProps) {
   const [fields, setFields] = useState<ContractFields>(() => buildInitialContractFields(applicant));
   const [includeCopy, setIncludeCopy] = useState(true);
+  const [includeAttachments, setIncludeAttachments] = useState(true);
+  const [attachments, setAttachments] = useState<ResolvedContractAttachment[]>(() =>
+    CONTRACT_ATTACHMENT_SLOTS.map((slot) => ({
+      slotKey: slot.slotKey,
+      label: slot.label,
+      status: 'loading',
+      imageUrls: [],
+    }))
+  );
+  const objectUrlsRef = useRef<string[]>([]);
 
   useEffect(() => {
     if (open) {
       setFields(buildInitialContractFields(applicant));
     }
   }, [open, applicant]);
+
+  useEffect(() => {
+    const revokeAll = () => {
+      for (const url of objectUrlsRef.current) {
+        URL.revokeObjectURL(url);
+      }
+      objectUrlsRef.current = [];
+    };
+
+    if (!open || !includeAttachments) {
+      revokeAll();
+      return;
+    }
+
+    let cancelled = false;
+    revokeAll();
+
+    setAttachments(
+      CONTRACT_ATTACHMENT_SLOTS.map((slot) => ({
+        slotKey: slot.slotKey,
+        label: slot.label,
+        status: 'loading',
+        imageUrls: [],
+      }))
+    );
+
+    const loadAll = async () => {
+      const results = await Promise.all(
+        CONTRACT_ATTACHMENT_SLOTS.map(async (slot): Promise<ResolvedContractAttachment> => {
+          const docItem = applicant.documents.find((d) => d.slotKey === slot.slotKey);
+          if (!docItem) {
+            return {
+              slotKey: slot.slotKey,
+              label: slot.label,
+              status: 'missing',
+              imageUrls: [],
+            };
+          }
+
+          try {
+            const resolved = await resolveApplicationFileApi(applicant.applicationId, docItem);
+            if (!resolved) {
+              return {
+                slotKey: slot.slotKey,
+                label: slot.label,
+                fileName: docItem.fileName,
+                status: 'unavailable',
+                imageUrls: [],
+              };
+            }
+
+            if (cancelled) {
+              URL.revokeObjectURL(resolved.objectUrl);
+              return {
+                slotKey: slot.slotKey,
+                label: slot.label,
+                fileName: docItem.fileName,
+                status: 'unavailable',
+                imageUrls: [],
+              };
+            }
+
+            objectUrlsRef.current.push(resolved.objectUrl);
+
+            const isPdf =
+              resolved.mimeType.includes('pdf') ||
+              docItem.fileName.toLowerCase().endsWith('.pdf');
+
+            if (isPdf) {
+              const pdfPageImages = await renderPdfBlobToImageUrls(resolved.objectUrl, 2);
+              if (pdfPageImages.length === 0) {
+                return {
+                  slotKey: slot.slotKey,
+                  label: slot.label,
+                  fileName: docItem.fileName,
+                  status: 'unavailable',
+                  imageUrls: [],
+                };
+              }
+              return {
+                slotKey: slot.slotKey,
+                label: slot.label,
+                fileName: docItem.fileName,
+                status: 'ready',
+                imageUrls: pdfPageImages,
+              };
+            }
+
+            return {
+              slotKey: slot.slotKey,
+              label: slot.label,
+              fileName: docItem.fileName,
+              status: 'ready',
+              imageUrls: [resolved.objectUrl],
+            };
+          } catch {
+            return {
+              slotKey: slot.slotKey,
+              label: slot.label,
+              fileName: docItem.fileName,
+              status: 'unavailable',
+              imageUrls: [],
+            };
+          }
+        })
+      );
+
+      if (!cancelled) {
+        setAttachments(results);
+      }
+    };
+
+    void loadAll();
+
+    return () => {
+      cancelled = true;
+      revokeAll();
+    };
+  }, [open, includeAttachments, applicant]);
 
   useEffect(() => {
     if (!open) return;
@@ -306,6 +455,9 @@ export function ContractPrintModal({ open, applicant, onClose }: ContractPrintMo
   }, [open, onClose]);
 
   if (!open) return null;
+
+  const loadingAttachments =
+    includeAttachments && attachments.some((item) => item.status === 'loading');
 
   const updateField = <K extends keyof ContractFields>(key: K, value: ContractFields[K]) => {
     setFields((prev) => ({ ...prev, [key]: value }));
@@ -339,13 +491,21 @@ export function ContractPrintModal({ open, applicant, onClose }: ContractPrintMo
             <span>รีเซ็ตค่าเริ่มต้น</span>
           </button>
 
+          {loadingAttachments && (
+            <span className="inline-flex items-center gap-1.5 rounded-xl border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-900">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              <span>กำลังเตรียมไฟล์แนบ 4 แผ่น...</span>
+            </span>
+          )}
+
           <button
             type="button"
             onClick={() => window.print()}
-            className="btn-lift inline-flex min-h-[40px] items-center gap-2 rounded-xl bg-teal-800 px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-teal-900 cursor-pointer"
+            disabled={loadingAttachments}
+            className="btn-lift inline-flex min-h-[40px] items-center gap-2 rounded-xl bg-teal-800 px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-teal-900 disabled:opacity-60 cursor-pointer"
           >
             <Printer className="h-4 w-4" />
-            <span>พิมพ์สัญญา</span>
+            <span>พิมพ์สัญญา / บันทึก PDF</span>
           </button>
 
           <button
@@ -578,6 +738,16 @@ export function ContractPrintModal({ open, applicant, onClose }: ContractPrintMo
                 />
                 <span>พิมพ์ทั้งชุด “ต้นฉบับ” และ “สำเนา”</span>
               </label>
+
+              <label className="flex items-center gap-2 font-semibold text-teal-950 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={includeAttachments}
+                  onChange={(e) => setIncludeAttachments(e.target.checked)}
+                  className="h-4 w-4 rounded border-teal-700 text-teal-800"
+                />
+                <span>ต่อท้ายเอกสารแนบ 4 แผ่น (A4 ต่อแผ่น)</span>
+              </label>
             </div>
           </aside>
 
@@ -591,6 +761,54 @@ export function ContractPrintModal({ open, applicant, onClose }: ContractPrintMo
                   <ContractDocumentSet label="สำเนา" fields={fields} />
                 </div>
               )}
+
+              {includeAttachments &&
+                attachments.map((item, idx) => (
+                  <section
+                    key={item.slotKey}
+                    className="contract-page-break contract-attachment-page mt-14 border-t-2 border-dashed border-slate-300 pt-10 print:mt-0 print:border-none print:pt-0"
+                  >
+                    <div className="font-contract flex flex-wrap items-baseline justify-between gap-2 border-b border-slate-300 pb-1.5 text-black">
+                      <h3 className="text-[20px] font-bold">
+                        เอกสารแนบแผ่นที่ {idx + 1} : {item.label}
+                      </h3>
+                      <span className="text-[16px]">
+                        ผู้รับจ้าง: {fields.contractorName} ({applicant.applicationId})
+                      </span>
+                    </div>
+
+                    <div className="mt-4 flex h-[230mm] flex-col items-center justify-center gap-3 overflow-hidden rounded-xl border border-slate-200 bg-slate-50/50 p-3 print:mt-3 print:h-[236mm] print:rounded-none print:border-none print:bg-transparent print:p-0">
+                      {item.status === 'loading' ? (
+                        <div className="no-print flex flex-col items-center gap-2 text-sm text-teal-900/70">
+                          <Loader2 className="h-6 w-6 animate-spin text-teal-700" />
+                          <span>กำลังโหลดเอกสาร {item.label}...</span>
+                        </div>
+                      ) : item.status === 'ready' && item.imageUrls.length > 0 ? (
+                        item.imageUrls.map((imgUrl, pageIdx) => (
+                          <img
+                            key={`${item.slotKey}-p${pageIdx}`}
+                            src={imgUrl}
+                            alt={`${item.label} หน้า ${pageIdx + 1}`}
+                            className={
+                              item.imageUrls.length === 1
+                                ? 'max-h-full max-w-full object-contain'
+                                : 'max-h-[114mm] w-auto max-w-full object-contain'
+                            }
+                          />
+                        ))
+                      ) : (
+                        <div className="font-contract max-w-md rounded-xl border border-dashed border-slate-300 bg-white px-6 py-8 text-center text-[18px] text-slate-700">
+                          <p className="font-bold">{item.label}</p>
+                          <p className="mt-1 text-[16px] text-slate-500">
+                            {item.status === 'missing'
+                              ? 'ผู้สมัครยังไม่ได้แนบเอกสารรายการนี้'
+                              : `ไม่พบไฟล์เอกสารต้นฉบับในระบบ${item.fileName ? ` (${item.fileName})` : ''}`}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </section>
+                ))}
             </div>
           </div>
         </div>

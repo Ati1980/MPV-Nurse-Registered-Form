@@ -161,6 +161,70 @@
         "updatedAt"
       ]
     },
+    "NurseRegistrationFile": {
+      "title": "NurseRegistrationFile",
+      "description": "Uploaded attachment payload stored in subcollection to preserve nurse_register document size under 1 MiB.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Document attachment ID matching the metadata item in nurse_register.documents.",
+          "minLength": 1,
+          "maxLength": 100,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "applicationId": {
+          "type": "string",
+          "description": "Parent application reference ID.",
+          "minLength": 5,
+          "maxLength": 64,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "slotKey": {
+          "type": "string",
+          "description": "Document slot identifier.",
+          "minLength": 1,
+          "maxLength": 40
+        },
+        "fileName": {
+          "type": "string",
+          "description": "Original file name.",
+          "minLength": 1,
+          "maxLength": 255
+        },
+        "mimeType": {
+          "type": "string",
+          "description": "MIME type of the attachment.",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "sizeBytes": {
+          "type": "number",
+          "description": "Attachment size in bytes."
+        },
+        "dataUrl": {
+          "type": "string",
+          "description": "Bounded base64 data URL payload.",
+          "minLength": 10,
+          "maxLength": 900000
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server-validated Firestore creation timestamp."
+        }
+      },
+      "required": [
+        "id",
+        "applicationId",
+        "slotKey",
+        "fileName",
+        "mimeType",
+        "sizeBytes",
+        "dataUrl",
+        "createdAt"
+      ]
+    },
     "AdminUser": {
       "title": "AdminUser",
       "description": "Authorized HR administrator record for reading and reviewing nurse applications.",
@@ -198,7 +262,13 @@
       "schema": {
         "$ref": "#/entities/NurseRegistration"
       },
-      "description": "Stores full Forms 1-5 nurse recruitment applications submitted by applicants; readable and updatable exclusively by verified HR admins."
+      "description": "Stores full Forms 1-5 nurse recruitment applications submitted by applicants; readable, updatable, and deletable exclusively by verified HR admins."
+    },
+    "/nurse_register/{applicationId}/files/{docId}": {
+      "schema": {
+        "$ref": "#/entities/NurseRegistrationFile"
+      },
+      "description": "Stores bounded uploaded attachment data URLs in a subcollection readable and deletable exclusively by verified HR admins."
     },
     "/nurse_register_status/{applicationId}": {
       "schema": {

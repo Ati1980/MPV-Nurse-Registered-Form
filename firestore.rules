@@ -249,6 +249,27 @@ service cloud.firestore {
         data.updatedAt is timestamp;
     }
 
+    function isValidRegistrationFile(f) {
+      return f is map &&
+        f.keys().hasAll([
+          'id', 'applicationId', 'slotKey', 'fileName', 'mimeType', 'sizeBytes', 'dataUrl', 'createdAt'
+        ]) &&
+        f.keys().hasOnly([
+          'id', 'applicationId', 'slotKey', 'fileName', 'mimeType', 'sizeBytes', 'dataUrl', 'createdAt'
+        ]) &&
+        isValidId(f.id) &&
+        f.id.size() <= 100 &&
+        isValidId(f.applicationId) &&
+        f.applicationId.size() >= 5 &&
+        f.applicationId.size() <= 64 &&
+        isBoundedString(f.slotKey, 1, 40) &&
+        isBoundedString(f.fileName, 1, 255) &&
+        isBoundedString(f.mimeType, 1, 100) &&
+        f.sizeBytes is number && f.sizeBytes >= 0 && f.sizeBytes <= 15000000 &&
+        isBoundedString(f.dataUrl, 10, 900000) &&
+        f.createdAt is timestamp;
+    }
+
     function isValidAdminUser(data) {
       return data is map &&
         data.keys().hasAll(['uid', 'email', 'createdAt']) &&
@@ -280,7 +301,28 @@ service cloud.firestore {
         incoming().createdAt == existing().createdAt &&
         incoming().updatedAt == request.time &&
         incoming().diff(existing()).affectedKeys().hasOnly(['status', 'hrNote', 'updatedAt']);
-      allow delete: if false;
+      allow delete: if isValidId(applicationId) && isAdmin();
+
+      // Subcollection: /nurse_register/{applicationId}/files/{docId}
+      match /files/{docId} {
+        allow get: if isValidId(applicationId) &&
+          isValidId(docId) &&
+          isAdmin() &&
+          exists(/databases/$(database)/documents/nurse_register/$(applicationId));
+        allow list: if isBootstrappedAdmin();
+        allow create: if isValidId(applicationId) &&
+          isValidId(docId) &&
+          isValidRegistrationFile(incoming()) &&
+          incoming().id == docId &&
+          incoming().applicationId == applicationId &&
+          incoming().createdAt == request.time &&
+          existsAfter(/databases/$(database)/documents/nurse_register/$(applicationId));
+        allow update: if false;
+        allow delete: if isValidId(applicationId) &&
+          isValidId(docId) &&
+          isAdmin() &&
+          exists(/databases/$(database)/documents/nurse_register/$(applicationId));
+      }
     }
 
     // ---------------------------------------------------------
@@ -305,7 +347,7 @@ service cloud.firestore {
         incoming().createdAt == existing().createdAt &&
         incoming().updatedAt == request.time &&
         incoming().diff(existing()).affectedKeys().hasOnly(['status', 'hrNote', 'updatedAt']);
-      allow delete: if false;
+      allow delete: if isValidId(applicationId) && isAdmin();
     }
 
     // ---------------------------------------------------------

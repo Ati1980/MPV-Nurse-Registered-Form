@@ -53,6 +53,10 @@ export function HrReviewView({ onLogout }: HrReviewViewProps) {
   );
 
   useEffect(() => {
+    if (!auth) {
+      setAuthReady(true);
+      return;
+    }
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       setFirebaseUser(user);
       setAuthReady(true);
@@ -66,7 +70,7 @@ export function HrReviewView({ onLogout }: HrReviewViewProps) {
   }, []);
 
   useEffect(() => {
-    if (!authReady || firebaseUser || autoAuthAttemptedRef.current) return;
+    if (!auth || !authReady || firebaseUser || autoAuthAttemptedRef.current) return;
     autoAuthAttemptedRef.current = true;
     void signInHrWithGoogle().catch((err: unknown) => {
       const code =
@@ -96,7 +100,7 @@ export function HrReviewView({ onLogout }: HrReviewViewProps) {
     setLoading(true);
     setError(null);
     try {
-      if (allowAuthPrompt && authReady && !auth.currentUser) {
+      if (allowAuthPrompt && auth && authReady && !auth.currentUser) {
         try {
           await signInHrWithGoogle();
         } catch {
@@ -156,7 +160,7 @@ export function HrReviewView({ onLogout }: HrReviewViewProps) {
 
   const handleLogoutClick = async () => {
     try {
-      if (auth.currentUser) {
+      if (auth?.currentUser) {
         await signOutHrGoogle();
       }
     } catch {

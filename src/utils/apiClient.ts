@@ -291,33 +291,35 @@ export async function submitApplicationApi(
   };
 
   // Persist Forms 1-5 to Firebase Firestore (`nurse_register` + atomic `nurse_register_status`)
-  const firestoreData = buildSanitizedFirestoreRecord(record);
-  const mobileHash = await computeMobileHash(
-    firestoreData.applicationId,
-    firestoreData.personalInfo.mobileNumber
-  );
+  if (db) {
+    const firestoreData = buildSanitizedFirestoreRecord(record);
+    const mobileHash = await computeMobileHash(
+      firestoreData.applicationId,
+      firestoreData.personalInfo.mobileNumber
+    );
 
-  const registerPath = `${NURSE_REGISTER_COLLECTION}/${firestoreData.applicationId}`;
-  const statusPath = `${NURSE_REGISTER_STATUS_COLLECTION}/${firestoreData.applicationId}`;
+    const registerPath = `${NURSE_REGISTER_COLLECTION}/${firestoreData.applicationId}`;
+    const statusPath = `${NURSE_REGISTER_STATUS_COLLECTION}/${firestoreData.applicationId}`;
 
-  try {
-    const batch = writeBatch(db);
-    batch.set(doc(db, NURSE_REGISTER_COLLECTION, firestoreData.applicationId), {
-      ...firestoreData,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    });
-    batch.set(doc(db, NURSE_REGISTER_STATUS_COLLECTION, firestoreData.applicationId), {
-      applicationId: firestoreData.applicationId,
-      status: firestoreData.status,
-      submittedAt: firestoreData.submittedAt,
-      mobileHash,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    });
-    await batch.commit();
-  } catch (error) {
-    handleFirestoreError(error, OperationType.WRITE, `${registerPath} & ${statusPath}`);
+    try {
+      const batch = writeBatch(db);
+      batch.set(doc(db, NURSE_REGISTER_COLLECTION, firestoreData.applicationId), {
+        ...firestoreData,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+      batch.set(doc(db, NURSE_REGISTER_STATUS_COLLECTION, firestoreData.applicationId), {
+        applicationId: firestoreData.applicationId,
+        status: firestoreData.status,
+        submittedAt: firestoreData.submittedAt,
+        mobileHash,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+      await batch.commit();
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, `${registerPath} & ${statusPath}`);
+    }
   }
 
   const deduped = existing.filter((r) => r.applicationId !== record.applicationId);
@@ -342,31 +344,33 @@ export async function trackApplicationApi(
   } | null = null;
 
   const statusPath = `${NURSE_REGISTER_STATUS_COLLECTION}/${cleanCode}`;
-  try {
-    const snap = await getDoc(doc(db, NURSE_REGISTER_STATUS_COLLECTION, cleanCode));
-    if (snap.exists()) {
-      const data = snap.data() as {
-        applicationId: string;
-        status: ApplicationStatus;
-        submittedAt: string;
-        mobileHash: string;
-        hrNote?: string;
-      };
-      const expectedHash = await computeMobileHash(cleanCode, cleanPhone);
-      if (data.mobileHash === expectedHash) {
-        firestoreStatus = data;
-      } else {
-        throw new Error('ไม่พบข้อมูลใบสมัครที่ตรงกับเลขที่ใบสมัครและเบอร์โทรศัพท์นี้');
+  if (db) {
+    try {
+      const snap = await getDoc(doc(db, NURSE_REGISTER_STATUS_COLLECTION, cleanCode));
+      if (snap.exists()) {
+        const data = snap.data() as {
+          applicationId: string;
+          status: ApplicationStatus;
+          submittedAt: string;
+          mobileHash: string;
+          hrNote?: string;
+        };
+        const expectedHash = await computeMobileHash(cleanCode, cleanPhone);
+        if (data.mobileHash === expectedHash) {
+          firestoreStatus = data;
+        } else {
+          throw new Error('ไม่พบข้อมูลใบสมัครที่ตรงกับเลขที่ใบสมัครและเบอร์โทรศัพท์นี้');
+        }
       }
+    } catch (error) {
+      if (
+        error instanceof Error &&
+        error.message === 'ไม่พบข้อมูลใบสมัครที่ตรงกับเลขที่ใบสมัครและเบอร์โทรศัพท์นี้'
+      ) {
+        throw error;
+      }
+      handleFirestoreError(error, OperationType.GET, statusPath);
     }
-  } catch (error) {
-    if (
-      error instanceof Error &&
-      error.message === 'ไม่พบข้อมูลใบสมัครที่ตรงกับเลขที่ใบสมัครและเบอร์โทรศัพท์นี้'
-    ) {
-      throw error;
-    }
-    handleFirestoreError(error, OperationType.GET, statusPath);
   }
 
   try {
@@ -467,6 +471,7 @@ export async function checkFirestoreHrAdmin(
 ): Promise<boolean> {
   if (!emailVerified) return false;
   if (isVerifiedBootstrappedAdmin(email, emailVerified)) return true;
+  if (!db) return false;
   try {
     const adminSnap = await getDoc(doc(db, 'admins', uid));
     return adminSnap.exists();
@@ -478,6 +483,7 @@ export async function checkFirestoreHrAdmin(
 export function subscribeNurseRegistrations(
   onData: (records: SubmittedApplicationRecord[]) => void
 ): Unsubscribe {
+  if (!db) return () => {};
   const q = query(
     collection(db, NURSE_REGISTER_COLLECTION),
     orderBy('createdAt', 'desc')
@@ -524,7 +530,7 @@ export async function updateApplicationStatusApi(
   }
 
   // Also persist status + hrNote to Firestore if HR admin is signed into Firebase Auth
-  if (auth.currentUser && auth.currentUser.emailVerified) {
+  if (db && auth?.currentUser && auth.currentUser.emailVerified) {
     const path = `${NURSE_REGISTER_COLLECTION}/${applicationId}`;
     try {
       const batch = writeBatch(db);

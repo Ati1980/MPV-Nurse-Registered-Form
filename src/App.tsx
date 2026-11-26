@@ -234,7 +234,7 @@ export default function App() {
   };
 
   return (
-    <div className="relative isolate min-h-screen flex flex-col overflow-x-clip">
+    <div className="relative isolate min-h-screen flex flex-col overflow-x-clip print:min-h-0 print:block print:overflow-visible">
       {/* Fixed Full-Bleed Background Image (nurse form bg.jpg) across all pages */}
       <div
         aria-hidden="true"

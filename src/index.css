@@ -249,9 +249,15 @@
     size: A4;
     margin: 18mm 20mm;
   }
-  body {
+  html, body {
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
     background: #ffffff !important;
     color: #000000 !important;
+  }
+  body.contract-modal-open #root {
+    display: none !important;
   }
   * {
     animation: none !important;

@@ -3,7 +3,12 @@ import { createPortal } from 'react-dom';
 import { FileDown, Loader2, Printer, RotateCcw, X } from 'lucide-react';
 import type { DocumentSlotKey, SubmittedApplicationRecord } from '../types/application.ts';
 import { resolveApplicationFileApi } from '../utils/apiClient.ts';
-import { exportContractToWordDocx } from '../utils/contractWordExport.ts';
+import {
+  DEFAULT_WORD_FONT,
+  exportContractToWordDocx,
+  WORD_FONT_OPTIONS,
+  type WordFontPreset,
+} from '../utils/contractWordExport.ts';
 import { renderPdfBlobToImageUrls } from '../utils/pdfRenderHelper.ts';
 
 const CONTRACT_ATTACHMENT_SLOTS: Array<{
@@ -481,6 +486,7 @@ export function ContractPrintModal({ open, applicant, onClose }: ContractPrintMo
   const [activeFieldKey, setActiveFieldKey] = useState<keyof ContractFields>('contractorName');
   const [includeCopy, setIncludeCopy] = useState(true);
   const [includeAttachments, setIncludeAttachments] = useState(true);
+  const [wordFont, setWordFont] = useState<WordFontPreset>(DEFAULT_WORD_FONT);
   const [exportingWord, setExportingWord] = useState(false);
   const [attachments, setAttachments] = useState<ResolvedContractAttachment[]>(() =>
     CONTRACT_ATTACHMENT_SLOTS.map((slot) => ({
@@ -694,6 +700,7 @@ export function ContractPrintModal({ open, applicant, onClose }: ContractPrintMo
         includeCopy,
         includeAttachments,
         attachments,
+        fontName: wordFont,
       });
     } finally {
       setExportingWord(false);
@@ -735,19 +742,36 @@ export function ContractPrintModal({ open, applicant, onClose }: ContractPrintMo
             </span>
           )}
 
-          <button
-            type="button"
-            onClick={() => void handleExportWord()}
-            disabled={loadingAttachments || exportingWord}
-            className="btn-lift inline-flex min-h-[40px] items-center gap-2 rounded-xl border border-sky-700/25 bg-sky-50 px-4 py-2 text-xs font-semibold text-sky-950 shadow-sm hover:bg-sky-100 disabled:opacity-60 cursor-pointer"
-          >
-            {exportingWord ? (
-              <Loader2 className="h-4 w-4 animate-spin text-sky-800" />
-            ) : (
-              <FileDown className="h-4 w-4 text-sky-800" />
-            )}
-            <span>{exportingWord ? 'กำลังสร้างไฟล์ Word...' : 'Save เป็น Word'}</span>
-          </button>
+          <div className="inline-flex min-h-[40px] items-center overflow-hidden rounded-xl border border-sky-700/25 bg-sky-50 shadow-sm">
+            <select
+              aria-label="เลือกฟอนต์สำหรับไฟล์ Word"
+              title="เลือกฟอนต์สำหรับไฟล์ Word (.docx)"
+              value={wordFont}
+              onChange={(e) => setWordFont(e.target.value as WordFontPreset)}
+              disabled={exportingWord}
+              className="h-full border-r border-sky-700/20 bg-white/80 px-2.5 py-2 text-xs font-medium text-sky-950 focus:outline-none cursor-pointer disabled:opacity-60"
+            >
+              {WORD_FONT_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  ฟอนต์: {opt.label}
+                </option>
+              ))}
+            </select>
+
+            <button
+              type="button"
+              onClick={() => void handleExportWord()}
+              disabled={loadingAttachments || exportingWord}
+              className="inline-flex h-full items-center gap-2 px-3.5 py-2 text-xs font-semibold text-sky-950 transition-colors hover:bg-sky-100 disabled:opacity-60 cursor-pointer"
+            >
+              {exportingWord ? (
+                <Loader2 className="h-4 w-4 animate-spin text-sky-800" />
+              ) : (
+                <FileDown className="h-4 w-4 text-sky-800" />
+              )}
+              <span>{exportingWord ? 'กำลังสร้างไฟล์ Word...' : 'Save เป็น Word'}</span>
+            </button>
+          </div>
 
           <button
             type="button"

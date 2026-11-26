@@ -1,6 +1,7 @@
 import {
   AlignmentType,
   BorderStyle,
+  CharacterSet,
   convertMillimetersToTwip,
   Document,
   ImageRun,
@@ -15,6 +16,28 @@ import {
 import type { ContractFields, FieldStylesMap } from '../components/ContractPrintModal.tsx';
 import type { DocumentSlotKey } from '../types/application.ts';
 
+export type WordFontPreset =
+  | 'Sarabun'
+  | 'TH Sarabun New'
+  | 'TH SarabunPSK'
+  | 'Angsana New'
+  | 'Cordia New'
+  | 'DilleniaUPC';
+
+export const DEFAULT_WORD_FONT: WordFontPreset = 'Sarabun';
+
+export const WORD_FONT_OPTIONS: ReadonlyArray<{
+  value: WordFontPreset;
+  label: string;
+}> = [
+  { value: 'Sarabun', label: 'Sarabun (ฝังฟอนต์ · Word ล่าสุด)' },
+  { value: 'TH Sarabun New', label: 'TH Sarabun New' },
+  { value: 'TH SarabunPSK', label: 'TH SarabunPSK' },
+  { value: 'Angsana New', label: 'Angsana New' },
+  { value: 'Cordia New', label: 'Cordia New' },
+  { value: 'DilleniaUPC', label: 'DilleniaUPC' },
+];
+
 export interface WordAttachmentItem {
   slotKey: DocumentSlotKey;
   label: string;
@@ -23,12 +46,10 @@ export interface WordAttachmentItem {
   imageUrls: string[];
 }
 
-const CONTRACT_FONT = {
-  ascii: 'DilleniaUPC',
-  hAnsi: 'DilleniaUPC',
-  cs: 'DilleniaUPC',
-  eastAsia: 'DilleniaUPC',
-};
+const THAI_LANGUAGE = {
+  value: 'th-TH',
+  bidirectional: 'th-TH',
+} as const;
 
 const NO_BORDERS = {
   top: { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' },
@@ -39,13 +60,80 @@ const NO_BORDERS = {
   insideVertical: { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' },
 };
 
-function plainRun(text: string, opts?: { bold?: boolean; sizePt?: number }): TextRun {
+const SIGNATURE_CELL_MARGINS = {
+  top: 0,
+  bottom: 0,
+  left: 40,
+  right: 40,
+};
+
+interface EmbeddedFontPair {
+  regular: Uint8Array;
+  bold: Uint8Array;
+}
+
+let cachedSarabunFonts: EmbeddedFontPair | null = null;
+let sarabunLoadPromise: Promise<EmbeddedFontPair | null> | null = null;
+
+async function loadEmbeddedSarabunFonts(): Promise<EmbeddedFontPair | null> {
+  if (cachedSarabunFonts) {
+    return cachedSarabunFonts;
+  }
+  if (!sarabunLoadPromise) {
+    sarabunLoadPromise = (async () => {
+      try {
+        const [regularRes, boldRes] = await Promise.all([
+          fetch('/fonts/Sarabun-Regular.ttf'),
+          fetch('/fonts/Sarabun-Bold.ttf'),
+        ]);
+        if (!regularRes.ok || !boldRes.ok) {
+          return null;
+        }
+        const [regularBuf, boldBuf] = await Promise.all([
+          regularRes.arrayBuffer(),
+          boldRes.arrayBuffer(),
+        ]);
+        if (regularBuf.byteLength === 0 || boldBuf.byteLength === 0) {
+          return null;
+        }
+        cachedSarabunFonts = {
+          regular: new Uint8Array(regularBuf),
+          bold: new Uint8Array(boldBuf),
+        };
+        return cachedSarabunFonts;
+      } catch {
+        return null;
+      }
+    })();
+  }
+  return sarabunLoadPromise;
+}
+
+function buildFontAttributes(fontName: string) {
+  return {
+    ascii: fontName,
+    hAnsi: fontName,
+    cs: fontName,
+    eastAsia: fontName,
+    hint: 'cs' as const,
+  };
+}
+
+function plainRun(
+  text: string,
+  fontName: string,
+  opts?: { bold?: boolean; sizePt?: number }
+): TextRun {
   const sizeHalfPoints = (opts?.sizePt ?? 16) * 2;
+  const isBold = opts?.bold ?? false;
   return new TextRun({
     text,
-    font: CONTRACT_FONT,
+    font: buildFontAttributes(fontName),
     size: sizeHalfPoints,
-    bold: opts?.bold ?? false,
+    sizeComplexScript: sizeHalfPoints,
+    bold: isBold,
+    boldComplexScript: isBold,
+    language: THAI_LANGUAGE,
     color: '000000',
   });
 }
@@ -53,11 +141,14 @@ function plainRun(text: string, opts?: { bold?: boolean; sizePt?: number }): Tex
 function fieldRun(
   key: keyof ContractFields,
   fields: ContractFields,
-  fieldStyles: FieldStylesMap
+  fieldStyles: FieldStylesMap,
+  fontName: string,
+  keepTogether = false
 ): TextRun {
-  const value = fields[key] || '....................';
+  const rawValue = fields[key] || '....................';
+  const value = keepTogether ? rawValue.replace(/ /g, '\u00A0') : rawValue;
   const style = fieldStyles[key];
-  return plainRun(value, {
+  return plainRun(value, fontName, {
     bold: style?.bold ?? false,
     sizePt: style?.sizePt ?? 16,
   });
@@ -140,107 +231,113 @@ function buildContractSetChildren(
   label: 'ต้นฉบับ' | 'สำเนา',
   fields: ContractFields,
   fieldStyles: FieldStylesMap,
+  fontName: string,
   pageBreakBefore: boolean
 ): Array<Paragraph | Table> {
+  const run = (text: string, opts?: { bold?: boolean; sizePt?: number }) =>
+    plainRun(text, fontName, opts);
+  const field = (key: keyof ContractFields, keepTogether = false) =>
+    fieldRun(key, fields, fieldStyles, fontName, keepTogether);
+
   const items: Array<Paragraph | Table> = [
     new Paragraph({
       alignment: AlignmentType.RIGHT,
       pageBreakBefore,
       spacing: { after: 60 },
-      children: [plainRun(label, { bold: true, sizePt: 16 })],
+      children: [run(label, { bold: true, sizePt: 16 })],
     }),
     new Paragraph({
       alignment: AlignmentType.CENTER,
       spacing: { after: 80 },
-      children: [plainRun('หนังสือสัญญาว่าจ้างพยาบาลวิชาชีพ (Part-Time)', { bold: true, sizePt: 16 })],
+      children: [run('หนังสือสัญญาว่าจ้างพยาบาลวิชาชีพ (Part-Time)', { bold: true, sizePt: 16 })],
     }),
     new Paragraph({
       alignment: AlignmentType.RIGHT,
       spacing: { after: 40 },
-      children: [plainRun('ทำ ที่ '), fieldRun('location', fields, fieldStyles)],
+      children: [run('ทำ ที่ '), field('location')],
     }),
     new Paragraph({
       alignment: AlignmentType.CENTER,
       spacing: { after: 140 },
-      children: [plainRun('วันที่ '), fieldRun('contractDate', fields, fieldStyles)],
+      children: [run('วันที่ '), field('contractDate')],
     }),
     bodyParagraph(
       [
-        plainRun('หนังสือสัญญาว่าจ้างนี้ทำขึ้นระหว่าง '),
-        fieldRun('companyName', fields, fieldStyles),
-        plainRun(' โดย '),
-        fieldRun('authorizedPerson', fields, fieldStyles),
-        plainRun(' ตำแหน่ง '),
-        fieldRun('authorizedPosition', fields, fieldStyles),
-        plainRun(' เป็นผู้รับมอบอำนาจกระทำการแทน บริษัทฯ ซึ่งต่อไปนี้เรียกว่า “บริษัทฯ” ฝ่ายหนึ่ง กับ '),
-        fieldRun('contractorName', fields, fieldStyles),
-        plainRun(' เลขบัตรประชาชน '),
-        fieldRun('contractorIdCard', fields, fieldStyles),
-        plainRun(' '),
-        fieldRun('contractorAddress', fields, fieldStyles),
-        plainRun(' ซึ่งต่อไปนี้เรียกว่า “ผู้รับจ้าง” อีกฝ่ายหนึ่ง ทั้งสองฝ่ายได้ทำสัญญาต่อกันตามรายละเอียดดังต่อไปนี้'),
+        run('หนังสือสัญญาว่าจ้างนี้ทำขึ้นระหว่าง '),
+        field('companyName'),
+        run(' โดย '),
+        field('authorizedPerson', true),
+        run(' ตำแหน่ง '),
+        field('authorizedPosition'),
+        run(' เป็นผู้รับมอบอำนาจกระทำการแทน บริษัทฯ ซึ่งต่อไปนี้เรียกว่า “บริษัทฯ” ฝ่ายหนึ่ง กับ '),
+        field('contractorName', true),
+        run(' เลขบัตรประชาชน '),
+        field('contractorIdCard', true),
+        run(' '),
+        field('contractorAddress'),
+        run(' ซึ่งต่อไปนี้เรียกว่า “ผู้รับจ้าง” อีกฝ่ายหนึ่ง ทั้งสองฝ่ายได้ทำสัญญาต่อกันตามรายละเอียดดังต่อไปนี้'),
       ],
       { indentFirstLineMm: 12 }
     ),
     bodyParagraph(
       [
-        plainRun('ข้อ 1. บริษัทฯ ตกลงว่าจ้างผู้รับจ้าง และ “ผู้รับจ้าง” ตกลงรับจ้างที่จะปฏิบัติงานด้านวิชาชีพพยาบาล โดยมาปฏิบัติงาน ณ '),
-        fieldRun('workplaceAddress', fields, fieldStyles),
-        plainRun(' รวมทั้งให้คำแนะนำเกี่ยวกับเรื่องสุขภาพอนามัยและสาธารณสุขทั่วไปแก่พนักงานของ “บริษัทฯ” ตั้งแต่วันที่ '),
-        fieldRun('startDate', fields, fieldStyles),
-        plainRun(' ถึงวันที่ '),
-        fieldRun('endDate', fields, fieldStyles),
-        plainRun(' โดยจะได้รับค่าจ้างตามตารางเวลาที่ “บริษัทฯ” กำหนดดังต่อไปนี้'),
+        run('ข้อ 1. บริษัทฯ ตกลงว่าจ้างผู้รับจ้าง และ “ผู้รับจ้าง” ตกลงรับจ้างที่จะปฏิบัติงานด้านวิชาชีพพยาบาล โดยมาปฏิบัติงาน ณ '),
+        field('workplaceAddress'),
+        run(' รวมทั้งให้คำแนะนำเกี่ยวกับเรื่องสุขภาพอนามัยและสาธารณสุขทั่วไปแก่พนักงานของ “บริษัทฯ” ตั้งแต่วันที่ '),
+        field('startDate'),
+        run(' ถึงวันที่ '),
+        field('endDate'),
+        run(' โดยจะได้รับค่าจ้างตามตารางเวลาที่ “บริษัทฯ” กำหนดดังต่อไปนี้'),
       ],
       { indentFirstLineMm: 12, spacingAfterPt: 2 }
     ),
     bodyParagraph(
       [
-        plainRun('1.1 เวรเช้า ปฏิบัติงาน เวลา '),
-        fieldRun('morningTime', fields, fieldStyles),
-        plainRun(' อัตราค่าบริการ '),
-        fieldRun('morningRate', fields, fieldStyles),
-        plainRun(' บาทต่อวัน ('),
-        fieldRun('morningRateText', fields, fieldStyles),
-        plainRun(')'),
+        run('1.1 เวรเช้า ปฏิบัติงาน เวลา '),
+        field('morningTime'),
+        run(' อัตราค่าบริการ '),
+        field('morningRate'),
+        run(' บาทต่อวัน ('),
+        field('morningRateText'),
+        run(')'),
       ],
       { leftIndentMm: 18, spacingAfterPt: 1 }
     ),
     bodyParagraph(
       [
-        plainRun('1.2 เวรบ่าย ปฏิบัติงาน เวลา '),
-        fieldRun('afternoonTime', fields, fieldStyles),
-        plainRun(' อัตราค่าบริการ '),
-        fieldRun('afternoonRate', fields, fieldStyles),
-        plainRun(' บาทต่อวัน ('),
-        fieldRun('afternoonRateText', fields, fieldStyles),
-        plainRun(')'),
+        run('1.2 เวรบ่าย ปฏิบัติงาน เวลา '),
+        field('afternoonTime'),
+        run(' อัตราค่าบริการ '),
+        field('afternoonRate'),
+        run(' บาทต่อวัน ('),
+        field('afternoonRateText'),
+        run(')'),
       ],
       { leftIndentMm: 18, spacingAfterPt: 1 }
     ),
     bodyParagraph(
       [
-        plainRun('1.3 เวรดึก ปฏิบัติงาน เวลา '),
-        fieldRun('nightTime', fields, fieldStyles),
-        plainRun(' อัตราค่าบริการ '),
-        fieldRun('nightRate', fields, fieldStyles),
-        plainRun(' บาทต่อวัน ('),
-        fieldRun('nightRateText', fields, fieldStyles),
-        plainRun(')'),
+        run('1.3 เวรดึก ปฏิบัติงาน เวลา '),
+        field('nightTime'),
+        run(' อัตราค่าบริการ '),
+        field('nightRate'),
+        run(' บาทต่อวัน ('),
+        field('nightRateText'),
+        run(')'),
       ],
       { leftIndentMm: 18, spacingAfterPt: 2 }
     ),
     bodyParagraph(
       [
-        plainRun('บริษัทฯ จะจ่ายเงินให้แก่ “ผู้รับจ้าง” เดือนละ 1 ครั้ง โดยค่าบริการตั้งแต่วันที่ 1 ถึง สิ้นเดือน จะจ่ายให้ในวันที่ '),
-        fieldRun('payDay', fields, fieldStyles),
-        plainRun(' ของเดือนถัดไป'),
+        run('บริษัทฯ จะจ่ายเงินให้แก่ “ผู้รับจ้าง” เดือนละ 1 ครั้ง โดยค่าบริการตั้งแต่วันที่ 1 ถึง สิ้นเดือน จะจ่ายให้ในวันที่ '),
+        field('payDay'),
+        run(' ของเดือนถัดไป'),
       ],
       { indentFirstLineMm: 12 }
     ),
     bodyParagraph(
       [
-        plainRun(
+        run(
           'ข้อ 2. ในระหว่างสัญญา “ผู้รับจ้าง” ได้รับรองแล้วว่าตนเป็นผู้มีความรู้ความสามารถในวิชาชีพของตน ซึ่งได้รับรองกับบริษัทฯ แล้ว ตามเอกสารรับรองใบประกอบวิชาชีพพยาบาล ที่ได้ส่งให้กับบริษัทฯ เพื่อแนบไว้เป็นหลักฐานคู่กับสัญญาฉบับนี้'
         ),
       ],
@@ -248,7 +345,7 @@ function buildContractSetChildren(
     ),
     bodyParagraph(
       [
-        plainRun(
+        run(
           'ข้อ 3. “ผู้รับจ้าง” จะต้องปฏิบัติหน้าที่ ดูแลให้คำแนะนำการจัดสถานที่ห้องพยาบาลให้เป็นระเบียบเรียบร้อยถูกสุขลักษณะตามมาตรฐานของสถานพยาบาล พร้อมจัดทำบันทึกประวัติคนไข้และบันทึกในสมุดควบคุมเกี่ยวกับคุณภาพของอุปกรณ์, ตรวจสอบวันหมดอายุยา, การป้องกันการแพร่กระจายเชื้อและป้องกันการติดเชื้อ การนำขยะติดเชื้อที่เกิดจากการรักษาพยาบาลไปกำจัดที่โรงพยาบาล การจัดทำรายงานเกี่ยวกับสถิติการมาใช้บริการ ณ ห้องพยาบาลของพนักงานของบริษัทฯ ให้กับตัวแทนของบริษัทฯ ทราบทุกๆ เดือน โดยแยกเป็นการเจ็บป่วยอันเนื่องมาจากการทำงาน และการเจ็บป่วยอันไม่เนื่องมาจากการทำงาน รวมทั้งการวิเคราะห์สาเหตุและให้คำแนะนำแก่บริษัทฯ ประกอบการรายงานด้วย นอกจากนี้ บริษัทฯ อาจให้ผู้รับจ้างจัดอบรมให้ความรู้เกี่ยวกับการดูแลสุขภาพหรือการป้องกันโรคอันเกิดขึ้นเนื่องจากการทำงานหรือโรคที่เกิดขึ้นอันไม่เนื่องจากการทำงานให้กับพนักงานของบริษัทฯ ด้วย'
         ),
       ],
@@ -256,7 +353,7 @@ function buildContractSetChildren(
     ),
     bodyParagraph(
       [
-        plainRun(
+        run(
           'ข้อ 4. “ผู้รับจ้าง” ต้องแจ้งรายการคงเหลือของเวชภัณฑ์หรืออุปกรณ์ประจำห้องพยาบาลให้แก่ “บริษัทฯ” ทราบเป็นรายเดือน เพื่อให้บริษัทฯ จัดซื้ออุปกรณ์เวชภัณฑ์ให้เพียงพอแก่การใช้งาน'
         ),
       ],
@@ -264,7 +361,7 @@ function buildContractSetChildren(
     ),
     bodyParagraph(
       [
-        plainRun(
+        run(
           'ข้อ 5. ในระหว่างสัญญา หาก “ผู้รับจ้าง” ไม่ปฏิบัติไปตามรายละเอียดงานใน ข้อ 1. ถึงข้อ 4. หรือละเลยต่อหน้าที่ตาม ข้อ 1. ถึงข้อ 4. ซึ่ง “ผู้รับจ้าง” ยอมรับให้ถือว่าเป็นส่วนหนึ่งของเงื่อนไขการจ้าง และ “ผู้รับจ้าง” ได้อ่านและทำความเข้าใจแล้วก่อนเซ็นสัญญาจ้าง “บริษัทฯ” จะถือว่า “ผู้รับจ้าง” ขาดคุณสมบัติในการปฏิบัติหน้าที่และ “บริษัทฯ” สามารถให้สัญญาฉบับนี้สิ้นสุดลงได้โดยทันที'
         ),
       ],
@@ -272,7 +369,7 @@ function buildContractSetChildren(
     ),
     bodyParagraph(
       [
-        plainRun(
+        run(
           'ข้อ 6. ในกรณีที่ “ผู้รับจ้าง” ไม่สามารถมาปฏิบัติหน้าที่ตามสัญญานี้ได้ ไม่ว่ากรณีใดก็ตาม “ผู้รับจ้าง” ตกลงจะติดต่อกับพยาบาลในทีมที่มีสัญญากับ “บริษัทฯ” ให้มาปฏิบัติงานแทนพร้อมกับแจ้งให้บริษัทฯ ทราบก่อนล่วงหน้าอย่างน้อย 1 ชั่วโมง'
         ),
       ],
@@ -280,7 +377,7 @@ function buildContractSetChildren(
     ),
     bodyParagraph(
       [
-        plainRun(
+        run(
           'ข้อ 7. ในระหว่างปฏิบัติหน้าที่ “ผู้รับจ้าง” จะต้องเชื่อฟังคำสั่งและรายงานผลการทำงานต่อตัวแทนของบริษัทฯ ซึ่ง “บริษัทฯ” ได้กำหนดไว้แล้วว่าเป็นผู้กำกับ ควบคุม ดูแล การปฏิบัติงานของ “ผู้รับจ้าง”'
         ),
       ],
@@ -288,7 +385,7 @@ function buildContractSetChildren(
     ),
     bodyParagraph(
       [
-        plainRun(
+        run(
           'ข้อ 8. “ผู้รับจ้าง” จะต้องปฏิบัติตามกฎ ข้อบังคับ ระเบียบ หรือประกาศที่เกี่ยวกับการทำงาน ความปลอดภัยในการทำงานการเข้า-ออกพื้นที่ของบริษัทฯ และการรักษาความปลอดภัยที่ “บริษัทฯ” ได้กำหนดไว้แล้วและที่จะกำหนดต่อไปในภายหน้าอย่างเคร่งครัด'
         ),
       ],
@@ -296,7 +393,7 @@ function buildContractSetChildren(
     ),
     bodyParagraph(
       [
-        plainRun(
+        run(
           'ข้อ 9. “ผู้รับจ้าง” ตกลงยินยอมที่จะให้ “บริษัทฯ” เปลี่ยนแปลงเวลาทำงาน เวลาพักได้ตามความเหมาะสม โดยขึ้นอยู่กับนโยบายของ “บริษัทฯ” ซึ่งจะประกาศหรือแจ้งให้ทราบล่วงหน้า'
         ),
       ],
@@ -304,7 +401,7 @@ function buildContractSetChildren(
     ),
     bodyParagraph(
       [
-        plainRun(
+        run(
           'ข้อ 10. “ผู้รับจ้าง” ตกลงยินยอมในการรักษาข้อมูลอันเป็นความลับทางธุรกิจของบริษัทฯ ไม่เผยแพร่ข้อมูลใดๆ ทั้งด้วยวาจาหรือเอกสารให้กับบุคคลภายนอกหรือบุคคลอื่นที่ไม่เกี่ยวข้องทราบ เว้นแต่ได้รับอนุญาตจากบริษัทฯ เป็นหนังสือ ความลับทางธุรกิจให้หมายถึง ข้อมูลเกี่ยวกับสูตรหรือกระบวนการผลิต ข้อมูลทางการเงินและบัญชี, แผนการตลาด หรือการดำเนินธุรกิจ, ค่าจ้าง และปัญหาภายในองค์กรเป็นต้น ในกรณีที่ “ผู้รับจ้าง” ไม่แน่ใจว่าสิ่งใดเป็นข้อมูลอันเป็นความลับทางธุรกิจหรือไม่ ให้ “ผู้รับจ้าง” สอบถามและต้องได้รับอนุญาตจากบริษัทฯ ก่อน การรักษาความลับทางธุรกิจนี้ “ผู้รับจ้าง” สัญญาว่าจะรักษาไว้เป็นความลับไม่ว่า “ผู้รับจ้าง” จะพ้นสภาพการจ้างไปแล้วหรือไม่ก็ตาม'
         ),
       ],
@@ -312,7 +409,7 @@ function buildContractSetChildren(
     ),
     bodyParagraph(
       [
-        plainRun(
+        run(
           'ข้อ 11. “ผู้รับจ้าง” จะต้องไม่กระทำการใด ๆ หรือมีส่วนร่วมหรือรับรู้ในการนำสิ่งที่ขัดต่อกฎหมายอันเป็นการละเมิดลิขสิทธิ์ของผู้อื่นตามที่บัญญัติไว้ในพระราชบัญญัติลิขสิทธิ์เข้ามาใช้ในกิจการของบริษัทฯ หรือฝ่าฝืนพระราชบัญญัติว่าด้วยการกระทำความผิดเกี่ยวกับคอมพิวเตอร์ หรือกฎหมายใดๆ ที่เกี่ยวข้อง หากผู้รับจ้างละเมิดสัญญานี้และก่อให้เกิดความเสียหายแก่บริษัทฯ ผู้รับจ้างจะต้องรับผิดชอบทั้งทางแพ่งและอาญา รวมทั้งชดใช้ความเสียหายนั้นๆ'
         ),
       ],
@@ -320,7 +417,7 @@ function buildContractSetChildren(
     ),
     bodyParagraph(
       [
-        plainRun(
+        run(
           'ข้อ 12. งานสร้างสรรค์ใด ๆ ซึ่ง “ผู้รับจ้าง” ได้กระทำขึ้นโดยใช้เวลา สถานที่ บุคลากร วัสดุอุปกรณ์ หรือสิ่งอื่นใดของบริษัทฯ ให้ถือเป็นกรรมสิทธิ์ของบริษัทฯ ที่บริษัทฯ จะนำไปเผยแพร่หรือดำเนินการอย่างใดก็ได้ ไม่ว่า “ผู้รับจ้าง” จะพ้นสภาพการจ้างไปแล้วหรือไม่ก็ตาม'
         ),
       ],
@@ -328,7 +425,7 @@ function buildContractSetChildren(
     ),
     bodyParagraph(
       [
-        plainRun(
+        run(
           'ข้อ 13. “ผู้รับจ้าง” ทราบและเข้าใจระเบียบข้อบังคับเกี่ยวกับการทำงานของบริษัทฯ รวมถึงข้อกำหนดจริยธรรมในการทำงาน การตรวจสอบภายในและประกาศเรื่องแนวปฏิบัติในกรณีพบเห็นการทุจริตหรือประพฤติตนเสื่อมเสีย ซึ่งเป็นส่วนหนึ่งของสัญญาจ้างฉบับนี้ และ “ผู้รับจ้าง” ตกลงยินยอมปฏิบัติตามระเบียบข้อบังคับเกี่ยวกับการทำงานของบริษัทฯ หรือประกาศ หรือคำสั่งอันชอบด้วยกฎหมายที่ใช้บังคับอยู่ของบริษัทฯ รวมทั้งที่จะได้ประกาศเพิ่มเติมในโอกาสต่อไปอย่างเคร่งครัด'
         ),
       ],
@@ -336,7 +433,7 @@ function buildContractSetChildren(
     ),
     bodyParagraph(
       [
-        plainRun(
+        run(
           'ข้อ 14. ในกรณีที่ “ผู้รับจ้าง” ผิดสัญญาข้อหนึ่งข้อใดหรือไม่สามารถปฏิบัติงานได้ตามที่ “บริษัทฯ” กำหนด หรือได้มีการว่ากล่าวตักเตือนแล้วครบ 2 ครั้งโดยขึ้นอยู่กับดุลยพินิจของ “บริษัทฯ” “บริษัทฯ” มีสิทธิบอกเลิกสัญญานี้ได้ทันที'
         ),
       ],
@@ -344,7 +441,7 @@ function buildContractSetChildren(
     ),
     bodyParagraph(
       [
-        plainRun(
+        run(
           'สัญญาฉบับนี้ทำขึ้นเป็นสองฉบับ ข้อความถูกต้องตรงกัน โดยยึดถือไว้ฝ่ายละฉบับ ทั้งสองฝ่ายได้อ่านและเข้าใจข้อความของสัญญาฉบับนี้เป็นอย่างดีแล้ว จึงลงลายมือชื่อไว้เป็นหลักฐาน'
         ),
       ],
@@ -360,40 +457,34 @@ function buildContractSetChildren(
             new TableCell({
               width: { size: 50, type: WidthType.PERCENTAGE },
               borders: NO_BORDERS,
+              margins: SIGNATURE_CELL_MARGINS,
               children: [
                 new Paragraph({
                   alignment: AlignmentType.CENTER,
                   spacing: { after: 60 },
-                  children: [plainRun('ลงชื่อ..........................ผู้รับมอบอำนาจของบริษัทฯ')],
+                  children: [run('ลงชื่อ..................ผู้รับมอบอำนาจของบริษัทฯ')],
                 }),
                 new Paragraph({
                   alignment: AlignmentType.CENTER,
                   spacing: { after: 360 },
-                  children: [
-                    plainRun('('),
-                    fieldRun('authorizedPerson', fields, fieldStyles),
-                    plainRun(')'),
-                  ],
+                  children: [run('('), field('authorizedPerson', true), run(')')],
                 }),
               ],
             }),
             new TableCell({
               width: { size: 50, type: WidthType.PERCENTAGE },
               borders: NO_BORDERS,
+              margins: SIGNATURE_CELL_MARGINS,
               children: [
                 new Paragraph({
                   alignment: AlignmentType.CENTER,
                   spacing: { after: 60 },
-                  children: [plainRun('ลงชื่อ..............................ผู้รับจ้าง')],
+                  children: [run('ลงชื่อ...........................ผู้รับจ้าง')],
                 }),
                 new Paragraph({
                   alignment: AlignmentType.CENTER,
                   spacing: { after: 360 },
-                  children: [
-                    plainRun('('),
-                    fieldRun('contractorName', fields, fieldStyles),
-                    plainRun(')'),
-                  ],
+                  children: [run('('), field('contractorName', true), run(')')],
                 }),
               ],
             }),
@@ -405,38 +496,32 @@ function buildContractSetChildren(
             new TableCell({
               width: { size: 50, type: WidthType.PERCENTAGE },
               borders: NO_BORDERS,
+              margins: SIGNATURE_CELL_MARGINS,
               children: [
                 new Paragraph({
                   alignment: AlignmentType.CENTER,
                   spacing: { after: 60 },
-                  children: [plainRun('ลงชื่อ..............................พยาน')],
+                  children: [run('ลงชื่อ...........................พยาน')],
                 }),
                 new Paragraph({
                   alignment: AlignmentType.CENTER,
-                  children: [
-                    plainRun('('),
-                    fieldRun('witness1', fields, fieldStyles),
-                    plainRun(')'),
-                  ],
+                  children: [run('('), field('witness1', true), run(')')],
                 }),
               ],
             }),
             new TableCell({
               width: { size: 50, type: WidthType.PERCENTAGE },
               borders: NO_BORDERS,
+              margins: SIGNATURE_CELL_MARGINS,
               children: [
                 new Paragraph({
                   alignment: AlignmentType.CENTER,
                   spacing: { after: 60 },
-                  children: [plainRun('ลงชื่อ..............................พยาน')],
+                  children: [run('ลงชื่อ...........................พยาน')],
                 }),
                 new Paragraph({
                   alignment: AlignmentType.CENTER,
-                  children: [
-                    plainRun('('),
-                    fieldRun('witness2', fields, fieldStyles),
-                    plainRun(')'),
-                  ],
+                  children: [run('('), field('witness2', true), run(')')],
                 }),
               ],
             }),
@@ -456,16 +541,27 @@ export async function exportContractToWordDocx(params: {
   includeCopy: boolean;
   includeAttachments: boolean;
   attachments: WordAttachmentItem[];
+  fontName?: WordFontPreset;
 }): Promise<void> {
-  const { fields, fieldStyles, applicationId, includeCopy, includeAttachments, attachments } =
-    params;
+  const {
+    fields,
+    fieldStyles,
+    applicationId,
+    includeCopy,
+    includeAttachments,
+    attachments,
+    fontName = DEFAULT_WORD_FONT,
+  } = params;
+
+  const embeddedFonts = fontName === 'Sarabun' ? await loadEmbeddedSarabunFonts() : null;
+  const fontAttributes = buildFontAttributes(fontName);
 
   const children: Array<Paragraph | Table> = [
-    ...buildContractSetChildren('ต้นฉบับ', fields, fieldStyles, false),
+    ...buildContractSetChildren('ต้นฉบับ', fields, fieldStyles, fontName, false),
   ];
 
   if (includeCopy) {
-    children.push(...buildContractSetChildren('สำเนา', fields, fieldStyles, true));
+    children.push(...buildContractSetChildren('สำเนา', fields, fieldStyles, fontName, true));
   }
 
   if (includeAttachments) {
@@ -484,11 +580,11 @@ export async function exportContractToWordDocx(params: {
                 bottom: { style: BorderStyle.SINGLE, size: 6, color: 'CBD5E1' },
               },
               children: [
-                plainRun(`เอกสารแนบแผ่นที่ ${idx + 1} : ${item.label}${pageSuffix}`, {
+                plainRun(`เอกสารแนบแผ่นที่ ${idx + 1} : ${item.label}${pageSuffix}`, fontName, {
                   bold: true,
                   sizePt: 16,
                 }),
-                plainRun(`   (ผู้รับจ้าง: ${fields.contractorName} · ${applicationId})`, {
+                plainRun(`   (ผู้รับจ้าง: ${fields.contractorName} · ${applicationId})`, fontName, {
                   sizePt: 14,
                 }),
               ],
@@ -524,8 +620,11 @@ export async function exportContractToWordDocx(params: {
               bottom: { style: BorderStyle.SINGLE, size: 6, color: 'CBD5E1' },
             },
             children: [
-              plainRun(`เอกสารแนบแผ่นที่ ${idx + 1} : ${item.label}`, { bold: true, sizePt: 16 }),
-              plainRun(`   (ผู้รับจ้าง: ${fields.contractorName} · ${applicationId})`, {
+              plainRun(`เอกสารแนบแผ่นที่ ${idx + 1} : ${item.label}`, fontName, {
+                bold: true,
+                sizePt: 16,
+              }),
+              plainRun(`   (ผู้รับจ้าง: ${fields.contractorName} · ${applicationId})`, fontName, {
                 sizePt: 14,
               }),
             ],
@@ -538,6 +637,7 @@ export async function exportContractToWordDocx(params: {
                 item.status === 'missing'
                   ? 'ผู้สมัครยังไม่ได้แนบเอกสารรายการนี้'
                   : `ไม่พบไฟล์เอกสารต้นฉบับในระบบ${item.fileName ? ` (${item.fileName})` : ''}`,
+                fontName,
                 { sizePt: 16 }
               ),
             ],
@@ -548,12 +648,44 @@ export async function exportContractToWordDocx(params: {
   }
 
   const doc = new Document({
+    compatibility: {
+      version: 15,
+    },
+    fonts: embeddedFonts
+      ? [
+          {
+            name: 'Sarabun',
+            data: embeddedFonts.regular as unknown as Buffer,
+            bold: embeddedFonts.bold as unknown as Buffer,
+            characterSet: CharacterSet.THAI,
+          },
+        ]
+      : undefined,
+    theme: {
+      name: 'Office Theme',
+      fonts: {
+        headings: {
+          latin: fontName,
+          eastAsia: fontName,
+          complexScript: fontName,
+          scripts: { Thai: fontName },
+        },
+        body: {
+          latin: fontName,
+          eastAsia: fontName,
+          complexScript: fontName,
+          scripts: { Thai: fontName },
+        },
+      },
+    },
     styles: {
       default: {
         document: {
           run: {
-            font: CONTRACT_FONT,
+            font: fontAttributes,
             size: 32,
+            sizeComplexScript: 32,
+            language: THAI_LANGUAGE,
             color: '000000',
           },
         },

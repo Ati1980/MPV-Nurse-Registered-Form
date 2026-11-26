@@ -267,14 +267,6 @@ export function validateStep1Personal(data: ApplicationFormData): ValidationErro
   } else if (!isThaiOnlyValid(p.fullNameTh)) {
     errors['personalInfo.fullNameTh'] = 'กรุณากรอกชื่อ-นามสกุลเป็นภาษาไทยเท่านั้น และห้ามใส่ตัวเลข';
   }
-  if (p.nicknameTh.trim() && !isThaiOnlyValid(p.nicknameTh)) {
-    errors['personalInfo.nicknameTh'] = 'กรุณากรอกชื่อเล่นเป็นภาษาไทยเท่านั้น และห้ามใส่ตัวเลข';
-  }
-  if (!p.fullNameEn.trim()) {
-    errors['personalInfo.fullNameEn'] = 'กรุณากรอกชื่อ-นามสกุลภาษาอังกฤษ';
-  } else if (!isEnglishOnlyValid(p.fullNameEn)) {
-    errors['personalInfo.fullNameEn'] = 'กรุณากรอกชื่อ-นามสกุลเป็นภาษาอังกฤษเท่านั้น และห้ามใส่ตัวเลข';
-  }
   if (!p.dateOfBirth) errors['personalInfo.dateOfBirth'] = 'กรุณาระบุวัน/เดือน/ปีเกิด';
   if (!p.age.trim()) errors['personalInfo.age'] = 'กรุณาระบุอายุ';
   if (!p.placeOfBirth.trim()) {

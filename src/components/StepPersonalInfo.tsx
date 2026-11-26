@@ -3,7 +3,6 @@ import type { PersonalInformation, TitlePrefix, ValidationErrors } from '../type
 import {
   calculateAgeFromDob,
   sanitizeDigitsOnly,
-  sanitizeEnglishOnly,
   sanitizeThaiOnly,
 } from '../utils/applicationHelpers.ts';
 
@@ -17,7 +16,6 @@ const TITLE_OPTIONS: TitlePrefix[] = ['นาย (Mr.)', 'นาง (Mrs.)', '�
 
 const THAI_ONLY_FIELDS = new Set<keyof PersonalInformation>([
   'fullNameTh',
-  'nicknameTh',
   'placeOfBirth',
   'nationality',
 ]);
@@ -25,7 +23,6 @@ const THAI_ONLY_FIELDS = new Set<keyof PersonalInformation>([
 const DIGITS_ONLY_FIELDS = new Set<keyof PersonalInformation>([
   'mobileNumber',
   'idCardOrPassport',
-  'permanentLandLine',
   'presentLandLine',
 ]);
 
@@ -50,17 +47,6 @@ export function StepPersonalInfo({
           message: 'กรุณากรอกเป็นภาษาไทยเท่านั้น และห้ามใส่ตัวเลข',
         });
       } else if (fieldHint?.field === String(key)) {
-        setFieldHint(null);
-      }
-      nextValue = sanitized as PersonalInformation[K];
-    } else if (key === 'fullNameEn' && typeof value === 'string') {
-      const sanitized = sanitizeEnglishOnly(value);
-      if (sanitized !== value) {
-        setFieldHint({
-          field: 'fullNameEn',
-          message: 'กรุณากรอกเป็นภาษาอังกฤษเท่านั้น และห้ามใส่ตัวเลข',
-        });
-      } else if (fieldHint?.field === 'fullNameEn') {
         setFieldHint(null);
       }
       nextValue = sanitized as PersonalInformation[K];
@@ -90,9 +76,6 @@ export function StepPersonalInfo({
       if (key === 'permanentAddress') {
         next.presentAddress = nextValue as string;
       }
-      if (key === 'permanentLandLine') {
-        next.presentLandLine = nextValue as string;
-      }
     }
 
     onChange(next);
@@ -103,7 +86,6 @@ export function StepPersonalInfo({
       ...personalInfo,
       sameAsPermanent: checked,
       presentAddress: checked ? personalInfo.permanentAddress : personalInfo.presentAddress,
-      presentLandLine: checked ? personalInfo.permanentLandLine : personalInfo.presentLandLine,
     });
   };
 
@@ -165,9 +147,9 @@ export function StepPersonalInfo({
         {renderError('personalInfo.title')}
       </div>
 
-      {/* Thai Name & Nickname */}
+      {/* Thai Name */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-12">
-        <div className="sm:col-span-8">
+        <div className="sm:col-span-12">
           <label htmlFor="fullNameTh" className="block text-sm font-semibold text-teal-950">
             ชื่อ - นามสกุลภาษาไทย <span className="text-rose-600">*</span>
           </label>
@@ -182,43 +164,6 @@ export function StepPersonalInfo({
           />
           {renderFieldHint('fullNameTh')}
           {renderError('personalInfo.fullNameTh')}
-        </div>
-
-        <div className="sm:col-span-4">
-          <label htmlFor="nicknameTh" className="block text-sm font-semibold text-teal-950">
-            ชื่อเล่น
-          </label>
-          <input
-            id="nicknameTh"
-            type="text"
-            lang="th"
-            value={personalInfo.nicknameTh}
-            onChange={(e) => updateField('nicknameTh', e.target.value)}
-            placeholder="เช่น น้ำ"
-            className="glass-input mt-1.5 w-full min-h-[44px] rounded-xl px-3.5 py-2.5 text-sm text-teal-950 placeholder:text-teal-900/40"
-          />
-          {renderFieldHint('nicknameTh')}
-          {renderError('personalInfo.nicknameTh')}
-        </div>
-      </div>
-
-      {/* English Name */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-12">
-        <div className="sm:col-span-12">
-          <label htmlFor="fullNameEn" className="block text-sm font-semibold text-teal-950">
-            ชื่อ - นามสกุลภาษาอังกฤษ (Name-Surname) <span className="text-rose-600">*</span>
-          </label>
-          <input
-            id="fullNameEn"
-            type="text"
-            lang="en"
-            value={personalInfo.fullNameEn}
-            onChange={(e) => updateField('fullNameEn', e.target.value)}
-            placeholder="e.g., Supaporn Jaidee"
-            className="glass-input mt-1.5 w-full min-h-[44px] rounded-xl px-3.5 py-2.5 text-sm text-teal-950 placeholder:text-teal-900/40"
-          />
-          {renderFieldHint('fullNameEn')}
-          {renderError('personalInfo.fullNameEn')}
         </div>
       </div>
 
@@ -344,26 +289,12 @@ export function StepPersonalInfo({
           {renderFieldHint('idCardOrPassport')}
           {renderError('personalInfo.idCardOrPassport')}
         </div>
-
-        <div>
-          <label htmlFor="lineId" className="block text-sm font-semibold text-teal-950">
-            Line ID
-          </label>
-          <input
-            id="lineId"
-            type="text"
-            value={personalInfo.lineId}
-            onChange={(e) => updateField('lineId', e.target.value)}
-            placeholder="ระบุ Line ID สำหรับติดต่อเพิ่มเติม"
-            className="glass-input mt-1.5 w-full min-h-[44px] rounded-xl px-3.5 py-2.5 text-sm text-teal-950 placeholder:text-teal-900/40"
-          />
-        </div>
       </div>
 
       {/* Permanent Address */}
       <div className="space-y-4 border-t border-teal-900/10 pt-5">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-12">
-          <div className="sm:col-span-8">
+          <div className="sm:col-span-12">
             <label htmlFor="permanentAddress" className="block text-sm font-semibold text-teal-950">
               ที่อยู่ตามทะเบียนบ้าน (Permanent Address) <span className="text-rose-600">*</span>
             </label>
@@ -376,24 +307,6 @@ export function StepPersonalInfo({
               className="glass-input mt-1.5 w-full rounded-xl px-3.5 py-2.5 text-sm text-teal-950 placeholder:text-teal-900/40"
             />
             {renderError('personalInfo.permanentAddress')}
-          </div>
-
-          <div className="sm:col-span-4">
-            <label htmlFor="permanentLandLine" className="block text-sm font-semibold text-teal-950">
-              โทรศัพท์ (Telephone)
-            </label>
-            <input
-              id="permanentLandLine"
-              type="tel"
-              inputMode="numeric"
-              pattern="[0-9]*"
-              value={personalInfo.permanentLandLine}
-              onChange={(e) => updateField('permanentLandLine', e.target.value)}
-              placeholder="เบอร์โทรศัพท์บ้าน (ถ้ามี)"
-              className="glass-input mt-1.5 w-full min-h-[44px] rounded-xl px-3.5 py-2.5 text-sm text-teal-950 font-mono tabular-nums placeholder:font-sans placeholder:text-teal-900/40"
-            />
-            {renderFieldHint('permanentLandLine')}
-            {renderError('personalInfo.permanentLandLine')}
           </div>
         </div>
 

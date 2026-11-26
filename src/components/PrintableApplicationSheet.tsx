@@ -106,13 +106,15 @@ export function PrintableApplicationSheet({
               {personalInfo.nicknameTh ? `(ชื่อเล่น: ${personalInfo.nicknameTh})` : ''}
             </span>
           </div>
-          <div>
-            <span className="font-semibold text-slate-600">Name-Surname (EN):</span>{' '}
-            <span>
-              {personalInfo.fullNameEn || '-'}{' '}
-              {personalInfo.nicknameEn ? `(Nickname: ${personalInfo.nicknameEn})` : ''}
-            </span>
-          </div>
+          {personalInfo.fullNameEn && (
+            <div>
+              <span className="font-semibold text-slate-600">Name-Surname (EN):</span>{' '}
+              <span>
+                {personalInfo.fullNameEn}{' '}
+                {personalInfo.nicknameEn ? `(Nickname: ${personalInfo.nicknameEn})` : ''}
+              </span>
+            </div>
+          )}
           <div>
             <span className="font-semibold text-slate-600">วัน/เดือน/ปีเกิด (Date of Birth):</span>{' '}
             <span className="tabular-nums">{personalInfo.dateOfBirth || '-'}</span>{' '}

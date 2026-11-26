@@ -75,7 +75,7 @@ service cloud.firestore {
         isBoundedString(p.title, 1, 30) &&
         isBoundedString(p.fullNameTh, 1, 120) &&
         isBoundedString(p.nicknameTh, 0, 60) &&
-        isBoundedString(p.fullNameEn, 1, 120) &&
+        isBoundedString(p.fullNameEn, 0, 120) &&
         isBoundedString(p.nicknameEn, 0, 60) &&
         isBoundedString(p.dateOfBirth, 4, 30) &&
         isBoundedString(p.age, 1, 10) &&

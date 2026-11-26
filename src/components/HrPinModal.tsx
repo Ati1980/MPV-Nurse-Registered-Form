@@ -8,17 +8,7 @@ interface HrPinModalProps {
   onSuccess: () => void;
 }
 
-const KEYPAD_DIGITS: { digit: string; sub?: string }[] = [
-  { digit: '1' },
-  { digit: '2', sub: 'ABC' },
-  { digit: '3', sub: 'DEF' },
-  { digit: '4', sub: 'GHI' },
-  { digit: '5', sub: 'JKL' },
-  { digit: '6', sub: 'MNO' },
-  { digit: '7', sub: 'PQRS' },
-  { digit: '8', sub: 'TUV' },
-  { digit: '9', sub: 'WXYZ' },
-];
+const KEYPAD_DIGITS = ['1', '2', '3', '4', '5', '6', '7', '8', '9'];
 
 export function HrPinModal({ open, onClose, onSuccess }: HrPinModalProps) {
   const [pin, setPin] = useState('');
@@ -196,22 +186,17 @@ export function HrPinModal({ open, onClose, onSuccess }: HrPinModalProps) {
 
         {/* Phone-Style Numeric Keypad (3x4) */}
         <div className="mt-3 grid grid-cols-3 gap-2.5 sm:gap-3">
-          {KEYPAD_DIGITS.map((item) => (
+          {KEYPAD_DIGITS.map((digit) => (
             <button
-              key={item.digit}
+              key={digit}
               type="button"
               disabled={verifying}
-              onClick={() => handleDigitPress(item.digit)}
-              className="btn-lift flex min-h-[56px] flex-col items-center justify-center rounded-2xl border border-teal-900/12 bg-white/85 py-2 text-teal-950 shadow-sm transition-colors hover:bg-white active:bg-teal-800 active:text-white disabled:opacity-50 cursor-pointer select-none"
+              onClick={() => handleDigitPress(digit)}
+              className="btn-lift flex min-h-[60px] items-center justify-center rounded-2xl border border-teal-900/12 bg-white/85 py-2 text-teal-950 shadow-sm transition-colors hover:bg-white active:bg-teal-800 active:text-white disabled:opacity-50 cursor-pointer select-none"
             >
-              <span className="font-mono text-xl font-bold leading-none tabular-nums">
-                {item.digit}
+              <span className="font-mono text-3xl font-bold leading-none tabular-nums">
+                {digit}
               </span>
-              {item.sub && (
-                <span className="mt-1 text-[9px] font-medium tracking-[0.16em] opacity-55 leading-none">
-                  {item.sub}
-                </span>
-              )}
             </button>
           ))}
 
@@ -221,10 +206,10 @@ export function HrPinModal({ open, onClose, onSuccess }: HrPinModalProps) {
             disabled={verifying || pin.length === 0}
             onClick={handleClear}
             aria-label="ล้างรหัสทั้งหมด"
-            className="btn-lift flex min-h-[56px] flex-col items-center justify-center rounded-2xl border border-teal-900/10 bg-white/60 text-teal-900/80 hover:bg-white disabled:opacity-40 cursor-pointer select-none"
+            className="btn-lift flex min-h-[60px] flex-col items-center justify-center rounded-2xl border border-teal-900/10 bg-white/60 text-teal-900/80 hover:bg-white disabled:opacity-40 cursor-pointer select-none"
           >
             <RotateCcw className="h-4 w-4" />
-            <span className="mt-1 text-[10px] font-medium">ล้าง</span>
+            <span className="mt-1 text-xs font-medium">ล้าง</span>
           </button>
 
           {/* Bottom-Center: 0 */}
@@ -232,12 +217,9 @@ export function HrPinModal({ open, onClose, onSuccess }: HrPinModalProps) {
             type="button"
             disabled={verifying}
             onClick={() => handleDigitPress('0')}
-            className="btn-lift flex min-h-[56px] flex-col items-center justify-center rounded-2xl border border-teal-900/12 bg-white/85 py-2 text-teal-950 shadow-sm transition-colors hover:bg-white active:bg-teal-800 active:text-white disabled:opacity-50 cursor-pointer select-none"
+            className="btn-lift flex min-h-[60px] items-center justify-center rounded-2xl border border-teal-900/12 bg-white/85 py-2 text-teal-950 shadow-sm transition-colors hover:bg-white active:bg-teal-800 active:text-white disabled:opacity-50 cursor-pointer select-none"
           >
-            <span className="font-mono text-xl font-bold leading-none tabular-nums">0</span>
-            <span className="mt-1 text-[9px] font-medium tracking-[0.16em] opacity-55 leading-none">
-              +
-            </span>
+            <span className="font-mono text-3xl font-bold leading-none tabular-nums">0</span>
           </button>
 
           {/* Bottom-Right: Backspace */}
@@ -246,10 +228,10 @@ export function HrPinModal({ open, onClose, onSuccess }: HrPinModalProps) {
             disabled={verifying || pin.length === 0}
             onClick={handleBackspace}
             aria-label="ลบตัวเลขล่าสุด"
-            className="btn-lift flex min-h-[56px] flex-col items-center justify-center rounded-2xl border border-teal-900/10 bg-white/60 text-teal-900/80 hover:bg-white disabled:opacity-40 cursor-pointer select-none"
+            className="btn-lift flex min-h-[60px] flex-col items-center justify-center rounded-2xl border border-teal-900/10 bg-white/60 text-teal-900/80 hover:bg-white disabled:opacity-40 cursor-pointer select-none"
           >
             <Delete className="h-4 w-4" />
-            <span className="mt-1 text-[10px] font-medium">ลบ</span>
+            <span className="mt-1 text-xs font-medium">ลบ</span>
           </button>
         </div>
       </div>

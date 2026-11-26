@@ -413,6 +413,71 @@ export async function submitApplicationApi(
   return record;
 }
 
+export async function attachMissingApplicationFileApi(
+  applicationId: string,
+  fileDoc: UploadedDocumentItem,
+  dataUrl: string,
+  mimeType: string,
+  sizeBytes: number
+): Promise<void> {
+  if (!db || !auth?.currentUser || !auth.currentUser.emailVerified) {
+    throw new Error('กรุณาเข้าสู่ระบบบัญชีผู้ดูแล HR บนคลาวด์ก่อนอัปโหลดไฟล์');
+  }
+  const firestoreDb = db;
+  const safeDocId = fileDoc.id.replace(/[^a-zA-Z0-9_-]/g, '-');
+  if (!safeDocId || !dataUrl.startsWith('data:')) {
+    throw new Error('ไฟล์ไม่ถูกต้อง');
+  }
+
+  const CHUNK_SIZE = 700_000;
+  const MAX_BATCH_CHARS = 3_200_000;
+  const chunkCount = Math.max(1, Math.ceil(dataUrl.length / CHUNK_SIZE));
+  const filePath = `${NURSE_REGISTER_COLLECTION}/${applicationId}/files/${safeDocId}`;
+
+  try {
+    let currentBatch = writeBatch(firestoreDb);
+    let currentBatchChars = 0;
+    let currentBatchCount = 0;
+
+    for (let chunkIndex = 0; chunkIndex < chunkCount; chunkIndex += 1) {
+      const slice = dataUrl.slice(chunkIndex * CHUNK_SIZE, (chunkIndex + 1) * CHUNK_SIZE);
+      const chunkDocId = chunkIndex === 0 ? safeDocId : `${safeDocId}__c${chunkIndex}`;
+      if (
+        currentBatchCount > 0 &&
+        (currentBatchChars + slice.length > MAX_BATCH_CHARS || currentBatchCount >= 10)
+      ) {
+        await currentBatch.commit();
+        currentBatch = writeBatch(firestoreDb);
+        currentBatchChars = 0;
+        currentBatchCount = 0;
+      }
+      currentBatch.set(
+        doc(firestoreDb, NURSE_REGISTER_COLLECTION, applicationId, 'files', chunkDocId),
+        {
+          id: chunkDocId,
+          applicationId,
+          slotKey: clampStr(fileDoc.slotKey, 40) || 'other',
+          fileName: clampStr(fileDoc.fileName, 255) || 'document',
+          mimeType: clampStr(mimeType || fileDoc.mimeType, 100) || 'application/octet-stream',
+          sizeBytes: Math.max(0, Math.min(15_000_000, sizeBytes || fileDoc.sizeBytes || 0)),
+          dataUrl: slice,
+          chunkIndex,
+          chunkCount,
+          createdAt: serverTimestamp(),
+        }
+      );
+      currentBatchChars += slice.length;
+      currentBatchCount += 1;
+    }
+
+    if (currentBatchCount > 0) {
+      await currentBatch.commit();
+    }
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, filePath);
+  }
+}
+
 export async function trackApplicationApi(
   code: string,
   phone: string

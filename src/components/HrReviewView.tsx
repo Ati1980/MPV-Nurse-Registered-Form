@@ -13,6 +13,7 @@ import {
   RefreshCw,
   ScrollText,
   Trash2,
+  UploadCloud,
   X,
 } from 'lucide-react';
 import { auth, signInHrWithGoogle, signOutHrGoogle } from '../firebase.ts';
@@ -22,6 +23,7 @@ import type {
   UploadedDocumentItem,
 } from '../types/application.ts';
 import {
+  attachMissingApplicationFileApi,
   deleteApplicationApi,
   isVerifiedBootstrappedAdmin,
   listApplicationsApi,
@@ -65,6 +67,7 @@ export function HrReviewView({ onLogout }: HrReviewViewProps) {
   const [previewState, setPreviewState] = useState<{
     doc: UploadedDocumentItem;
     loading: boolean;
+    uploadingRecovery?: boolean;
     objectUrl: string | null;
     pdfPageUrls: string[];
     mimeType: string;
@@ -266,6 +269,46 @@ export function HrReviewView({ onLogout }: HrReviewViewProps) {
         pdfPageUrls: [],
         mimeType: docItem.mimeType,
         error: 'ไม่สามารถโหลดไฟล์เอกสารได้ กรุณาลองใหม่อีกครั้ง',
+      });
+    }
+  };
+
+  const handleRecoverMissingFile = async (
+    appId: string,
+    docItem: UploadedDocumentItem,
+    file: File | undefined
+  ) => {
+    if (!file) return;
+    setPreviewState((prev) =>
+      prev ? { ...prev, uploadingRecovery: true, error: null } : prev
+    );
+    try {
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result || ''));
+        reader.onerror = () => reject(new Error('ไม่สามารถอ่านไฟล์ได้'));
+        reader.readAsDataURL(file);
+      });
+      await attachMissingApplicationFileApi(
+        appId,
+        docItem,
+        dataUrl,
+        file.type || docItem.mimeType,
+        file.size
+      );
+      await handleOpenAttachment(appId, docItem);
+    } catch (err) {
+      setPreviewState({
+        doc: docItem,
+        loading: false,
+        uploadingRecovery: false,
+        objectUrl: null,
+        pdfPageUrls: [],
+        mimeType: docItem.mimeType,
+        error:
+          err instanceof Error && err.message
+            ? err.message
+            : 'ไม่สามารถอัปโหลดไฟล์เข้าระบบคลาวด์ได้ กรุณาลองใหม่อีกครั้ง',
       });
     }
   };
@@ -723,7 +766,36 @@ export function HrReviewView({ onLogout }: HrReviewViewProps) {
                   </div>
                 ) : previewState.error ? (
                   <div className="my-auto max-w-md rounded-2xl border border-amber-200 bg-amber-50 p-5 text-center text-sm text-amber-900">
-                    {previewState.error}
+                    <p>{previewState.error}</p>
+                    {selectedApp && isCloudAdmin && (
+                      <label className="btn-lift mt-4 inline-flex min-h-[40px] cursor-pointer items-center gap-2 rounded-xl bg-teal-800 px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-teal-900">
+                        {previewState.uploadingRecovery ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <UploadCloud className="h-4 w-4" />
+                        )}
+                        <span>
+                          {previewState.uploadingRecovery
+                            ? 'กำลังอัปโหลดไฟล์เข้าระบบ...'
+                            : 'เลือกไฟล์นี้เพื่ออัปโหลดเข้าใบสมัคร'}
+                        </span>
+                        <input
+                          type="file"
+                          accept="application/pdf,image/jpeg,image/png,image/webp"
+                          disabled={previewState.uploadingRecovery}
+                          onChange={(e) => {
+                            const f = e.target.files?.[0];
+                            e.target.value = '';
+                            void handleRecoverMissingFile(
+                              selectedApp.applicationId,
+                              previewState.doc,
+                              f
+                            );
+                          }}
+                          className="sr-only"
+                        />
+                      </label>
+                    )}
                   </div>
                 ) : previewState.objectUrl && previewState.mimeType.startsWith('image/') ? (
                   <img

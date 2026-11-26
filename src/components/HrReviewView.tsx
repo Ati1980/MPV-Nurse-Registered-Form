@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { onAuthStateChanged, type User } from 'firebase/auth';
-import { ExternalLink, FileText, LogIn, LogOut, Printer, RefreshCw } from 'lucide-react';
+import { ExternalLink, FileText, LogOut, Printer, RefreshCw, ScrollText } from 'lucide-react';
 import { auth, signInHrWithGoogle, signOutHrGoogle } from '../firebase.ts';
 import type {
   ApplicationStatus,
@@ -12,7 +12,12 @@ import {
   subscribeNurseRegistrations,
   updateApplicationStatusApi,
 } from '../utils/apiClient.ts';
-import { formatBytes, formatThaiDateTime } from '../utils/applicationHelpers.ts';
+import {
+  formatBytes,
+  formatThaiDateTime,
+  getApplicationStatusStyle,
+} from '../utils/applicationHelpers.ts';
+import { ContractPrintModal } from './ContractPrintModal.tsx';
 import { PrintableApplicationSheet } from './PrintableApplicationSheet.tsx';
 
 const STATUS_OPTIONS: ApplicationStatus[] = [
@@ -34,11 +39,12 @@ export function HrReviewView({ onLogout }: HrReviewViewProps) {
   const [error, setError] = useState<string | null>(null);
   const [savingStatus, setSavingStatus] = useState(false);
   const [noteDraft, setNoteDraft] = useState('');
+  const [contractModalOpen, setContractModalOpen] = useState(false);
 
   const [authReady, setAuthReady] = useState(false);
   const [firebaseUser, setFirebaseUser] = useState<User | null>(null);
-  const [authBusy, setAuthBusy] = useState(false);
   const [authWarning, setAuthWarning] = useState<string | null>(null);
+  const autoAuthAttemptedRef = useRef(false);
 
   const isCloudAdmin = Boolean(
     authReady &&
@@ -60,6 +66,22 @@ export function HrReviewView({ onLogout }: HrReviewViewProps) {
   }, []);
 
   useEffect(() => {
+    if (!authReady || firebaseUser || autoAuthAttemptedRef.current) return;
+    autoAuthAttemptedRef.current = true;
+    void signInHrWithGoogle().catch((err: unknown) => {
+      const code =
+        typeof err === 'object' && err !== null && 'code' in err
+          ? String((err as { code?: unknown }).code)
+          : '';
+      if (code === 'auth/popup-blocked') {
+        setAuthWarning(
+          'เบราว์เซอร์บล็อกหน้าต่างยืนยันบัญชี HR อัตโนมัติ กรุณากดปุ่ม "รีเฟรชรายการ" เพื่อซิงค์ข้อมูลจาก Firebase'
+        );
+      }
+    });
+  }, [authReady, firebaseUser]);
+
+  useEffect(() => {
     if (!isCloudAdmin) {
       setCloudApplications([]);
       return;
@@ -70,10 +92,17 @@ export function HrReviewView({ onLogout }: HrReviewViewProps) {
     return unsubscribe;
   }, [isCloudAdmin]);
 
-  const fetchApplications = useCallback(async () => {
+  const fetchApplications = useCallback(async (allowAuthPrompt = false) => {
     setLoading(true);
     setError(null);
     try {
+      if (allowAuthPrompt && authReady && !auth.currentUser) {
+        try {
+          await signInHrWithGoogle();
+        } catch {
+          // Continue loading local records even if sign-in popup is dismissed
+        }
+      }
       const list = await listApplicationsApi();
       setLocalApplications(list);
     } catch (err) {
@@ -81,7 +110,7 @@ export function HrReviewView({ onLogout }: HrReviewViewProps) {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [authReady]);
 
   useEffect(() => {
     void fetchApplications();
@@ -123,20 +152,6 @@ export function HrReviewView({ onLogout }: HrReviewViewProps) {
   const handleSelectApp = (app: SubmittedApplicationRecord) => {
     setSelectedId(app.applicationId);
     setNoteDraft(app.hrNote || '');
-  };
-
-  const handleGoogleSignIn = async () => {
-    setAuthBusy(true);
-    setAuthWarning(null);
-    try {
-      await signInHrWithGoogle();
-    } catch (err) {
-      setAuthWarning(
-        err instanceof Error ? 'ไม่สามารถเข้าสู่ระบบ Google ได้ กรุณาลองใหม่อีกครั้ง' : 'เข้าสู่ระบบไม่สำเร็จ'
-      );
-    } finally {
-      setAuthBusy(false);
-    }
   };
 
   const handleLogoutClick = async () => {
@@ -208,21 +223,9 @@ export function HrReviewView({ onLogout }: HrReviewViewProps) {
           </div>
 
           <div className="flex flex-wrap items-center gap-2.5">
-            {!isCloudAdmin && (
-              <button
-                type="button"
-                disabled={authBusy}
-                onClick={() => void handleGoogleSignIn()}
-                className="btn-lift inline-flex min-h-[42px] items-center gap-2 rounded-xl border border-teal-800/25 bg-teal-50/90 px-4 py-2 text-sm font-medium text-teal-950 hover:bg-teal-100 disabled:opacity-60 cursor-pointer"
-              >
-                <LogIn className="h-4 w-4 text-teal-800" />
-                <span>{authBusy ? 'กำลังเชื่อมต่อ...' : 'ซิงค์ฐานข้อมูล Firebase'}</span>
-              </button>
-            )}
-
             <button
               type="button"
-              onClick={() => void fetchApplications()}
+              onClick={() => void fetchApplications(true)}
               className="btn-lift inline-flex min-h-[42px] items-center gap-2 rounded-xl border border-teal-900/15 bg-white/80 px-4 py-2 text-sm font-medium text-teal-950 hover:bg-white cursor-pointer"
             >
               <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
@@ -271,6 +274,7 @@ export function HrReviewView({ onLogout }: HrReviewViewProps) {
             <div className="space-y-2.5 lg:col-span-4">
               {applications.map((app) => {
                 const active = selectedApp?.applicationId === app.applicationId;
+                const statusStyle = getApplicationStatusStyle(app.status);
                 return (
                   <button
                     key={app.applicationId}
@@ -282,11 +286,16 @@ export function HrReviewView({ onLogout }: HrReviewViewProps) {
                         : 'border-teal-900/10 bg-white/60 hover:bg-white/90'
                     }`}
                   >
-                    <div className="flex items-center justify-between gap-2">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
                       <span className="font-mono text-xs font-semibold text-teal-800 tabular-nums">
                         {app.applicationId}
                       </span>
-                      <span className="text-xs font-medium text-teal-900/70">{app.status}</span>
+                      <span
+                        className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-0.5 text-[11px] font-semibold ${statusStyle.badge}`}
+                      >
+                        <span className={`h-1.5 w-1.5 rounded-full ${statusStyle.dot}`} />
+                        <span>{app.status}</span>
+                      </span>
                     </div>
                     <p className="font-display mt-1.5 text-base font-semibold text-teal-950">
                       {app.personalInfo.title} {app.personalInfo.fullNameTh}
@@ -315,14 +324,25 @@ export function HrReviewView({ onLogout }: HrReviewViewProps) {
                       </p>
                     </div>
 
-                    <button
-                      type="button"
-                      onClick={() => window.print()}
-                      className="inline-flex min-h-[40px] items-center gap-2 rounded-xl border border-teal-900/15 bg-white px-4 py-2 text-xs font-semibold text-teal-950 hover:bg-teal-50 cursor-pointer"
-                    >
-                      <Printer className="h-4 w-4" />
-                      <span>พิมพ์ใบสมัคร</span>
-                    </button>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setContractModalOpen(true)}
+                        className="btn-lift inline-flex min-h-[40px] items-center gap-2 rounded-xl border border-teal-700/25 bg-teal-50 px-4 py-2 text-xs font-semibold text-teal-900 hover:bg-teal-100 cursor-pointer"
+                      >
+                        <ScrollText className="h-4 w-4 text-teal-800" />
+                        <span>พิมพ์สัญญา</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => window.print()}
+                        className="btn-lift inline-flex min-h-[40px] items-center gap-2 rounded-xl border border-teal-900/15 bg-white px-4 py-2 text-xs font-semibold text-teal-950 hover:bg-teal-50 cursor-pointer"
+                      >
+                        <Printer className="h-4 w-4" />
+                        <span>พิมพ์ใบสมัคร</span>
+                      </button>
+                    </div>
                   </div>
 
                   <div className="mt-4">
@@ -342,19 +362,23 @@ export function HrReviewView({ onLogout }: HrReviewViewProps) {
                   <div className="mt-4 flex flex-wrap gap-2">
                     {STATUS_OPTIONS.map((statusOption) => {
                       const isCurrent = selectedApp.status === statusOption;
+                      const optionStyle = getApplicationStatusStyle(statusOption);
                       return (
                         <button
                           key={statusOption}
                           type="button"
                           disabled={savingStatus}
                           onClick={() => void handleUpdateStatus(statusOption)}
-                          className={`btn-lift min-h-[40px] rounded-xl px-3.5 py-2 text-xs font-semibold cursor-pointer ${
-                            isCurrent
-                              ? 'bg-teal-800 text-white'
-                              : 'border border-teal-900/15 bg-white text-teal-950 hover:bg-teal-50'
+                          className={`btn-lift inline-flex min-h-[42px] items-center gap-2 rounded-xl px-4 py-2 text-xs font-semibold cursor-pointer ${
+                            isCurrent ? optionStyle.activeBtn : optionStyle.inactiveBtn
                           }`}
                         >
-                          {statusOption}
+                          <span
+                            className={`h-2 w-2 rounded-full ${
+                              isCurrent ? 'bg-white' : optionStyle.dot
+                            }`}
+                          />
+                          <span>{statusOption}</span>
                         </button>
                       );
                     })}
@@ -415,13 +439,21 @@ export function HrReviewView({ onLogout }: HrReviewViewProps) {
 
       {/* Printable Preview when HR clicks Print */}
       {selectedApp && (
-        <div className="mt-6">
+        <div className={contractModalOpen ? 'no-print mt-6' : 'mt-6'}>
           <PrintableApplicationSheet
             data={selectedApp}
             applicationId={selectedApp.applicationId}
             submittedAt={selectedApp.submittedAt}
           />
         </div>
+      )}
+
+      {selectedApp && (
+        <ContractPrintModal
+          open={contractModalOpen}
+          applicant={selectedApp}
+          onClose={() => setContractModalOpen(false)}
+        />
       )}
     </div>
   );

@@ -245,6 +245,10 @@
 }
 
 @media print {
+  @page {
+    size: A4;
+    margin: 18mm 20mm;
+  }
   body {
     background: #ffffff !important;
     color: #000000 !important;
@@ -267,4 +271,23 @@
     margin: 0 !important;
     max-width: 100% !important;
   }
+  .contract-sheet {
+    box-shadow: none !important;
+    border: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    max-width: 100% !important;
+  }
+  .contract-page-break {
+    break-before: page;
+    page-break-before: always;
+  }
+  .contract-signature-block {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+}
+
+.font-contract {
+  font-family: "Sarabun", "IBM Plex Sans Thai", sans-serif;
 }

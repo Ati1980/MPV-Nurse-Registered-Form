@@ -4,7 +4,10 @@ import {
   trackApplicationApi,
   type TrackedApplicationResult,
 } from '../utils/apiClient.ts';
-import { formatThaiDateTime } from '../utils/applicationHelpers.ts';
+import {
+  formatThaiDateTime,
+  getApplicationStatusStyle,
+} from '../utils/applicationHelpers.ts';
 import { PrintableApplicationSheet } from './PrintableApplicationSheet.tsx';
 
 interface StatusTrackerViewProps {
@@ -117,8 +120,20 @@ export function StatusTrackerView({ initialCode = '' }: StatusTrackerViewProps) 
             <div className="flex flex-wrap items-center justify-between gap-4">
               <div>
                 <p className="text-xs text-teal-800">สถานะปัจจุบันของใบสมัคร {result.applicationId}</p>
-                <p className="font-display mt-1 text-xl font-bold text-teal-950">{result.status}</p>
-                <p className="mt-1 text-xs text-teal-900/75 tabular-nums">
+                {(() => {
+                  const statusStyle = getApplicationStatusStyle(result.status);
+                  return (
+                    <div className="mt-1.5">
+                      <span
+                        className={`inline-flex items-center gap-2 rounded-xl px-3.5 py-1.5 font-display text-base font-bold ${statusStyle.badge}`}
+                      >
+                        <span className={`h-2.5 w-2.5 rounded-full ${statusStyle.dot}`} />
+                        <span>{result.status}</span>
+                      </span>
+                    </div>
+                  );
+                })()}
+                <p className="mt-2 text-xs text-teal-900/75 tabular-nums">
                   ยื่นสมัครเมื่อ {formatThaiDateTime(result.submittedAt)}
                 </p>
                 {result.hrNote && (

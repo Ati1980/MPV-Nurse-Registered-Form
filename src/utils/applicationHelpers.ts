@@ -439,3 +439,48 @@ export function formatThaiDateTime(isoString: string): string {
     minute: '2-digit',
   }).format(date);
 }
+
+export interface StatusStyleSpec {
+  badge: string;
+  dot: string;
+  activeBtn: string;
+  inactiveBtn: string;
+}
+
+const STATUS_STYLE_MAP: Record<string, StatusStyleSpec> = {
+  ได้รับใบสมัครแล้ว: {
+    badge: 'border border-sky-300 bg-sky-100 text-sky-900',
+    dot: 'bg-sky-600',
+    activeBtn: 'border border-sky-700 bg-sky-600 text-white shadow-sm ring-2 ring-sky-300/70',
+    inactiveBtn: 'border border-sky-300/90 bg-sky-50/95 text-sky-950 hover:bg-sky-100',
+  },
+  อยู่ระหว่างตรวจสอบเอกสาร: {
+    badge: 'border border-amber-300 bg-amber-100 text-amber-950',
+    dot: 'bg-amber-600',
+    activeBtn: 'border border-amber-600 bg-amber-500 text-white shadow-sm ring-2 ring-amber-300/70',
+    inactiveBtn: 'border border-amber-300/90 bg-amber-50/95 text-amber-950 hover:bg-amber-100',
+  },
+  ผ่านการคัดกรองเบื้องต้น: {
+    badge: 'border border-emerald-300 bg-emerald-100 text-emerald-950',
+    dot: 'bg-emerald-600',
+    activeBtn: 'border border-emerald-700 bg-emerald-600 text-white shadow-sm ring-2 ring-emerald-300/70',
+    inactiveBtn: 'border border-emerald-300/90 bg-emerald-50/95 text-emerald-950 hover:bg-emerald-100',
+  },
+  นัดหมายสัมภาษณ์: {
+    badge: 'border border-violet-300 bg-violet-100 text-violet-950',
+    dot: 'bg-violet-600',
+    activeBtn: 'border border-violet-700 bg-violet-600 text-white shadow-sm ring-2 ring-violet-300/70',
+    inactiveBtn: 'border border-violet-300/90 bg-violet-50/95 text-violet-950 hover:bg-violet-100',
+  },
+};
+
+export function getApplicationStatusStyle(status: string): StatusStyleSpec {
+  return (
+    STATUS_STYLE_MAP[status] ?? {
+      badge: 'border border-teal-300 bg-teal-100 text-teal-950',
+      dot: 'bg-teal-600',
+      activeBtn: 'border border-teal-800 bg-teal-700 text-white shadow-sm ring-2 ring-teal-300/70',
+      inactiveBtn: 'border border-teal-300 bg-white text-teal-950 hover:bg-teal-50',
+    }
+  );
+}

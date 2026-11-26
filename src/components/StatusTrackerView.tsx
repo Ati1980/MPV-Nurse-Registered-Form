@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { Printer, Search } from 'lucide-react';
 import type { SubmittedApplicationRecord } from '../types/application.ts';
+import { trackApplicationApi } from '../utils/apiClient.ts';
 import { formatThaiDateTime } from '../utils/applicationHelpers.ts';
 import { PrintableApplicationSheet } from './PrintableApplicationSheet.tsx';
 
@@ -27,30 +28,20 @@ export function StatusTrackerView({ initialCode = '' }: StatusTrackerViewProps) 
 
     setLoading(true);
     try {
-      const params = new URLSearchParams({
-        code: code.trim(),
-        phone: phone.trim(),
-      });
-      const res = await fetch(`/api/applications/track?${params.toString()}`);
-      const data = (await res.json()) as {
-        application?: SubmittedApplicationRecord;
-        error?: string;
-      };
-      if (!res.ok || !data.application) {
-        setError(data.error || 'ไม่พบข้อมูลใบสมัครที่ตรงกัน');
-      } else {
-        setResult(data.application);
-      }
-    } catch {
-      setError('ไม่สามารถเชื่อมต่อระบบตรวจสอบสถานะได้ในขณะนี้');
+      const found = await trackApplicationApi(code, phone);
+      setResult(found);
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : 'ไม่สามารถเชื่อมต่อระบบตรวจสอบสถานะได้ในขณะนี้'
+      );
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 sm:py-10">
-      <section className="no-print glass-panel rounded-3xl p-6 sm:p-8">
+    <div className="mx-auto max-w-5xl px-3.5 py-5 sm:px-6 sm:py-10">
+      <section className="no-print glass-panel rounded-3xl p-5 sm:p-8">
         <h1 className="font-display text-2xl font-bold text-teal-950">
           ติดตามสถานะใบสมัครพยาบาลวิชาชีพ ประจำปี 2570
         </h1>

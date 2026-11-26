@@ -137,11 +137,11 @@ export function ReviewAndSubmit({
 
       <PrintableApplicationSheet data={formData} />
 
-      <div className="flex flex-wrap items-center justify-end gap-3 border-t border-teal-900/10 pt-5">
+      <div className="flex flex-col-reverse gap-3 border-t border-teal-900/10 pt-5 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
         <button
           type="button"
           onClick={() => window.print()}
-          className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-xl border border-teal-900/15 bg-white/85 px-4 py-2.5 text-sm font-medium text-teal-950 hover:bg-white cursor-pointer"
+          className="inline-flex min-h-[46px] w-full items-center justify-center gap-2 rounded-xl border border-teal-900/15 bg-white/85 px-4 py-2.5 text-sm font-medium text-teal-950 hover:bg-white cursor-pointer sm:w-auto"
         >
           <Printer className="h-4 w-4" />
           <span>พิมพ์ตัวอย่างเอกสาร</span>
@@ -151,7 +151,7 @@ export function ReviewAndSubmit({
           type="button"
           disabled={isSubmitting}
           onClick={onSubmitApplication}
-          className="inline-flex min-h-[48px] items-center justify-center rounded-xl bg-teal-800 px-7 py-3 text-base font-semibold text-white shadow-md shadow-teal-950/15 transition-all hover:bg-teal-900 disabled:opacity-60 cursor-pointer"
+          className="inline-flex min-h-[48px] w-full items-center justify-center rounded-xl bg-teal-800 px-7 py-3 text-base font-semibold text-white shadow-md shadow-teal-950/15 transition-all hover:bg-teal-900 disabled:opacity-60 cursor-pointer sm:w-auto"
         >
           {isSubmitting ? 'กำลังบันทึกและส่งใบสมัคร...' : 'ยืนยันส่งใบสมัครออนไลน์'}
         </button>

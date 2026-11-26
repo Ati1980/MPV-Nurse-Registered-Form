@@ -4,6 +4,7 @@ import type {
   ApplicationStatus,
   SubmittedApplicationRecord,
 } from '../types/application.ts';
+import { listApplicationsApi, updateApplicationStatusApi } from '../utils/apiClient.ts';
 import { formatBytes, formatThaiDateTime } from '../utils/applicationHelpers.ts';
 import { PrintableApplicationSheet } from './PrintableApplicationSheet.tsx';
 
@@ -26,12 +27,7 @@ export function HrReviewView() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch('/api/applications');
-      const data = (await res.json()) as { applications?: SubmittedApplicationRecord[] };
-      if (!res.ok) {
-        throw new Error('ไม่สามารถโหลดรายการใบสมัครได้');
-      }
-      const list = data.applications ?? [];
+      const list = await listApplicationsApi();
       setApplications(list);
       if (list.length > 0 && !selectedId) {
         setSelectedId(list[0].applicationId);
@@ -60,19 +56,15 @@ export function HrReviewView() {
     if (!selectedApp) return;
     setSavingStatus(true);
     try {
-      const res = await fetch(
-        `/api/applications/${encodeURIComponent(selectedApp.applicationId)}/status`,
-        {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ status, hrNote: noteDraft }),
-        }
+      const updated = await updateApplicationStatusApi(
+        selectedApp.applicationId,
+        status,
+        noteDraft
       );
-      const data = (await res.json()) as { application?: SubmittedApplicationRecord };
-      if (res.ok && data.application) {
+      if (updated) {
         setApplications((prev) =>
           prev.map((item) =>
-            item.applicationId === data.application!.applicationId ? data.application! : item
+            item.applicationId === updated.applicationId ? updated : item
           )
         );
       }
@@ -82,8 +74,8 @@ export function HrReviewView() {
   };
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 sm:py-10">
-      <div className="no-print glass-panel rounded-3xl p-6 sm:p-8">
+    <div className="mx-auto max-w-6xl px-3.5 py-5 sm:px-6 sm:py-10">
+      <div className="no-print glass-panel rounded-3xl p-4 sm:p-8">
         <div className="flex flex-wrap items-center justify-between gap-4 border-b border-teal-900/10 pb-5">
           <div>
             <h1 className="font-display text-2xl font-bold text-teal-950">

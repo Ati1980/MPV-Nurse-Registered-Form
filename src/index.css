@@ -7,11 +7,14 @@
 }
 
 @layer base {
-  html {
+  html,
+  body {
     font-family: var(--font-sans);
     scroll-behavior: smooth;
     color: #0f2926;
     background-color: #a8dfd0;
+    overflow-x: hidden;
+    -webkit-text-size-adjust: 100%;
   }
 
   h1, h2, h3, h4, .font-display {
@@ -43,6 +46,13 @@
     background-color 160ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
+/* Prevent iOS Safari automatic zoom when focusing text inputs on mobile */
+@media (max-width: 639px) {
+  .glass-input {
+    font-size: 16px;
+  }
+}
+
 .glass-input:focus {
   outline: none;
   background: #ffffff;
@@ -52,6 +62,15 @@
 
 .tabular-nums {
   font-variant-numeric: tabular-nums;
+}
+
+/* Hide horizontal scrollbar for mobile step tabs while keeping touch scrollability */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
 
 @media (prefers-reduced-motion: reduce) {

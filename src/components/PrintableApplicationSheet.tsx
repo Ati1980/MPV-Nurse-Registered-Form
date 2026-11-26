@@ -23,7 +23,7 @@ export function PrintableApplicationSheet({
   );
 
   return (
-    <div className="print-container rounded-2xl border border-slate-300 bg-white p-6 text-slate-900 shadow-sm sm:p-8">
+    <div className="print-container max-w-full overflow-hidden rounded-2xl border border-slate-300 bg-white p-4 text-slate-900 shadow-sm sm:p-8 break-words">
       {/* Official Header */}
       <div className="flex flex-col justify-between gap-4 border-b-2 border-teal-800 pb-4 sm:flex-row sm:items-start">
         <div>
@@ -147,37 +147,64 @@ export function PrintableApplicationSheet({
             ไม่มีประสบการณ์ทำงาน
           </div>
         ) : (
-          <div className="overflow-x-auto border-x border-b border-slate-200">
-            <table className="w-full border-collapse text-left text-xs">
-              <thead>
-                <tr className="bg-slate-100 text-slate-800 border-b border-slate-200">
-                  <th className="p-2 border-r border-slate-200">ระยะเวลาทำงาน</th>
-                  <th className="p-2 border-r border-slate-200">บริษัท / สถานพยาบาล</th>
-                  <th className="p-2 border-r border-slate-200">ตำแหน่ง</th>
-                  <th className="p-2 border-r border-slate-200">ลักษณะงานที่รับผิดชอบ</th>
-                  <th className="p-2 border-r border-slate-200">เงินเดือน / รายได้อื่น</th>
-                  <th className="p-2">สาเหตุที่ออก</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-200">
-                {filledWorkRows.map((row) => (
-                  <tr key={row.id}>
-                    <td className="p-2 border-r border-slate-200 font-mono tabular-nums whitespace-nowrap">
-                      {row.fromMonthYear || '-'} – {row.toMonthYear || '-'}
-                    </td>
-                    <td className="p-2 border-r border-slate-200">{row.company || '-'}</td>
-                    <td className="p-2 border-r border-slate-200">{row.position || '-'}</td>
-                    <td className="p-2 border-r border-slate-200">{row.scopeOfResponsibility || '-'}</td>
-                    <td className="p-2 border-r border-slate-200 tabular-nums">
-                      {row.salary || '-'}
-                      {row.otherIncome ? ` / ${row.otherIncome}` : ''}
-                    </td>
-                    <td className="p-2">{row.reasonForLeaving || '-'}</td>
+          <>
+            {/* Mobile Card View */}
+            <div className="divide-y divide-slate-200 border-x border-b border-slate-200 sm:hidden print:hidden">
+              {filledWorkRows.map((row) => (
+                <div key={row.id} className="space-y-1.5 p-3 text-xs">
+                  <div className="font-semibold text-slate-900">
+                    {row.position || '-'} · {row.company || '-'}
+                  </div>
+                  <div className="font-mono text-slate-600 tabular-nums">
+                    ระยะเวลา: {row.fromMonthYear || '-'} – {row.toMonthYear || '-'}
+                  </div>
+                  {row.scopeOfResponsibility && (
+                    <div className="text-slate-700">หน้าที่: {row.scopeOfResponsibility}</div>
+                  )}
+                  <div className="text-slate-600 tabular-nums">
+                    เงินเดือน: {row.salary || '-'}
+                    {row.otherIncome ? ` · รายได้อื่น: ${row.otherIncome}` : ''}
+                  </div>
+                  {row.reasonForLeaving && (
+                    <div className="text-slate-600">สาเหตุที่ออก: {row.reasonForLeaving}</div>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            {/* Desktop & Print Table */}
+            <div className="hidden overflow-x-auto border-x border-b border-slate-200 sm:block print:block">
+              <table className="w-full border-collapse text-left text-xs">
+                <thead>
+                  <tr className="bg-slate-100 text-slate-800 border-b border-slate-200">
+                    <th className="p-2 border-r border-slate-200">ระยะเวลาทำงาน</th>
+                    <th className="p-2 border-r border-slate-200">บริษัท / สถานพยาบาล</th>
+                    <th className="p-2 border-r border-slate-200">ตำแหน่ง</th>
+                    <th className="p-2 border-r border-slate-200">ลักษณะงานที่รับผิดชอบ</th>
+                    <th className="p-2 border-r border-slate-200">เงินเดือน / รายได้อื่น</th>
+                    <th className="p-2">สาเหตุที่ออก</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="divide-y divide-slate-200">
+                  {filledWorkRows.map((row) => (
+                    <tr key={row.id}>
+                      <td className="p-2 border-r border-slate-200 font-mono tabular-nums whitespace-nowrap">
+                        {row.fromMonthYear || '-'} – {row.toMonthYear || '-'}
+                      </td>
+                      <td className="p-2 border-r border-slate-200">{row.company || '-'}</td>
+                      <td className="p-2 border-r border-slate-200">{row.position || '-'}</td>
+                      <td className="p-2 border-r border-slate-200">{row.scopeOfResponsibility || '-'}</td>
+                      <td className="p-2 border-r border-slate-200 tabular-nums">
+                        {row.salary || '-'}
+                        {row.otherIncome ? ` / ${row.otherIncome}` : ''}
+                      </td>
+                      <td className="p-2">{row.reasonForLeaving || '-'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </div>
 
@@ -186,7 +213,24 @@ export function PrintableApplicationSheet({
         <div className="bg-sky-100/90 px-3 py-1.5 text-sm font-bold text-slate-900 border border-sky-200">
           3. ประวัติการศึกษา (Education Background)
         </div>
-        <div className="overflow-x-auto border-x border-b border-slate-200">
+        {/* Mobile Card View */}
+        <div className="divide-y divide-slate-200 border-x border-b border-slate-200 sm:hidden print:hidden">
+          {educationBackground.map((edu) => (
+            <div key={edu.levelKey} className="space-y-1 p-3 text-xs">
+              <div className="font-semibold text-slate-900">{edu.levelLabel}</div>
+              <div className="text-slate-700">
+                สถาบัน: {edu.institute || '-'} · วุฒิ: {edu.degree || '-'}
+              </div>
+              <div className="text-slate-600 tabular-nums">
+                สาขา: {edu.major || '-'} · G.P.A.: {edu.gpa || '-'} · ปี:{' '}
+                {edu.fromYear || edu.toYear ? `${edu.fromYear || '-'} – ${edu.toYear || '-'}` : '-'}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Desktop & Print Table */}
+        <div className="hidden overflow-x-auto border-x border-b border-slate-200 sm:block print:block">
           <table className="w-full border-collapse text-left text-xs">
             <thead>
               <tr className="bg-slate-100 text-slate-800 border-b border-slate-200">

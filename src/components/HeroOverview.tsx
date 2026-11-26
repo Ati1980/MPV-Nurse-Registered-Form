@@ -27,10 +27,10 @@ export function HeroOverview({
   ];
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 sm:py-12">
+    <div className="mx-auto max-w-6xl px-3.5 py-5 sm:px-6 sm:py-12">
       {/* Main Hero Glass Surface */}
-      <section className="glass-panel rounded-3xl p-6 sm:p-10 lg:p-12">
-        <div className="grid grid-cols-1 gap-8 lg:grid-cols-12 lg:items-stretch">
+      <section className="glass-panel rounded-3xl p-5 sm:p-10 lg:p-12">
+        <div className="grid grid-cols-1 gap-6 sm:gap-8 lg:grid-cols-12 lg:items-stretch">
           {/* Left Content Column */}
           <div className="flex flex-col justify-between lg:col-span-7">
             <div>
@@ -40,27 +40,27 @@ export function HeroOverview({
               </p>
 
               <h1
-                className="font-display mt-3 font-bold tracking-tight text-teal-950 leading-[1.2]"
+                className="font-display mt-2.5 font-bold tracking-tight text-teal-950 leading-[1.22]"
                 style={{
-                  fontSize: 'clamp(1.75rem, 3.2vw, 2.75rem)',
+                  fontSize: 'clamp(1.5rem, 3.2vw, 2.75rem)',
                   textWrap: 'balance',
                 }}
               >
                 ฟอร์มรับสมัครพยาบาลวิชาชีพ โรงงานน้ำตาลมิตรภูเวียง ประจำปี 2570
               </h1>
 
-              <p className="mt-4 max-w-2xl text-base leading-relaxed text-teal-900/85">
+              <p className="mt-3.5 max-w-2xl text-sm leading-relaxed text-teal-900/85 sm:mt-4 sm:text-base">
                 เปิดรับสมัครบุคลากรทางการพยาบาลผู้มีใบอนุญาตประกอบวิชาชีพ เพื่อร่วมดูแลสุขภาพพนักงาน
                 งานปฐมพยาบาลฉุกเฉิน และการส่งเสริมอาชีวอนามัยและความปลอดภัยภายในโรงงานน้ำตาลมิตรภูเวียง
                 กรอกประวัติส่วนตัวและแนบเอกสารประกอบการสมัครผ่านระบบออนไลน์ได้ครบจบในขั้นตอนเดียว
               </p>
             </div>
 
-            <div className="mt-8 flex flex-wrap items-center gap-3">
+            <div className="mt-6 flex flex-col gap-3 sm:mt-8 sm:flex-row sm:flex-wrap sm:items-center">
               <button
                 type="button"
                 onClick={onStartApply}
-                className="inline-flex min-h-[48px] items-center justify-center gap-2 rounded-2xl bg-teal-800 px-6 py-3 text-base font-semibold text-white shadow-md shadow-teal-950/15 transition-all duration-150 hover:bg-teal-900 active:scale-[0.98] whitespace-nowrap shrink-0 cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-700"
+                className="inline-flex min-h-[48px] w-full items-center justify-center gap-2 rounded-2xl bg-teal-800 px-6 py-3 text-base font-semibold text-white shadow-md shadow-teal-950/15 transition-all duration-150 hover:bg-teal-900 active:scale-[0.98] whitespace-nowrap shrink-0 cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-700 sm:w-auto"
               >
                 <span>{hasSavedDraft ? 'ดำเนินการกรอกใบสมัครต่อ' : 'เริ่มกรอกใบสมัครออนไลน์'}</span>
                 <ArrowRight className="h-4 w-4" />
@@ -69,7 +69,7 @@ export function HeroOverview({
               <button
                 type="button"
                 onClick={onTrackStatus}
-                className="inline-flex min-h-[48px] items-center justify-center rounded-2xl border border-teal-900/15 bg-white/75 px-5 py-3 text-sm font-medium text-teal-950 transition-colors duration-150 hover:bg-white whitespace-nowrap shrink-0 cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-700"
+                className="inline-flex min-h-[48px] w-full items-center justify-center rounded-2xl border border-teal-900/15 bg-white/75 px-5 py-3 text-sm font-medium text-teal-950 transition-colors duration-150 hover:bg-white whitespace-nowrap shrink-0 cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-700 sm:w-auto"
               >
                 ติดตามสถานะใบสมัคร
               </button>
@@ -77,19 +77,19 @@ export function HeroOverview({
           </div>
 
           {/* Right Structured Checklist Panel */}
-          <div className="flex flex-col justify-between rounded-2xl border border-teal-900/10 bg-white/70 p-6 lg:col-span-5">
+          <div className="flex flex-col justify-between rounded-2xl border border-teal-900/10 bg-white/70 p-4 sm:p-6 lg:col-span-5">
             <div>
               <div className="flex items-center gap-2.5 text-teal-950">
                 <Stethoscope className="h-5 w-5 text-teal-700 shrink-0" />
-                <h2 className="font-display text-lg font-semibold">
+                <h2 className="font-display text-base font-semibold sm:text-lg">
                   เอกสารที่ต้องเตรียมสำหรับแนบออนไลน์
                 </h2>
               </div>
-              <p className="mt-1.5 text-sm text-teal-900/75">
+              <p className="mt-1.5 text-xs text-teal-900/75 sm:text-sm">
                 รองรับไฟล์ PDF, JPG และ PNG ขนาดไม่เกิน 10 MB ต่อรายการ พร้อมบันทึกฉบับร่างอัตโนมัติ
               </p>
 
-              <ul className="mt-5 space-y-3">
+              <ul className="mt-4 space-y-2.5 sm:mt-5 sm:space-y-3">
                 {requiredDocs.map((doc, idx) => (
                   <li key={idx} className="flex items-start gap-2.5 text-sm text-teal-950">
                     <FileText className="mt-0.5 h-4 w-4 shrink-0 text-teal-700" />
@@ -99,35 +99,35 @@ export function HeroOverview({
               </ul>
             </div>
 
-            <div className="mt-6 border-t border-teal-900/10 pt-4 text-xs text-teal-900/75">
+            <div className="mt-5 border-t border-teal-900/10 pt-3.5 text-xs text-teal-900/75 sm:mt-6 sm:pt-4">
               ข้อมูลส่วนบุคคลของผู้สมัครจะถูกเก็บรักษาและประมวลผลตามพระราชบัญญัติคุ้มครองข้อมูลส่วนบุคคล (PDPA)
             </div>
           </div>
         </div>
 
         {/* Full-Width 4-Column Key Position Strip */}
-        <div className="mt-8 grid grid-cols-1 gap-4 border-t border-teal-900/10 pt-7 sm:grid-cols-2 lg:grid-cols-4">
-          <div className="rounded-2xl bg-white/65 px-4 py-3.5 border border-white/80">
-            <p className="text-xs text-teal-800/80">ตำแหน่งที่เปิดรับ</p>
-            <p className="font-display mt-1 text-base font-semibold text-teal-950">
+        <div className="mt-6 grid grid-cols-2 gap-3 border-t border-teal-900/10 pt-5 sm:mt-8 sm:gap-4 sm:pt-7 lg:grid-cols-4">
+          <div className="rounded-2xl bg-white/65 px-3.5 py-3 border border-white/80 sm:px-4 sm:py-3.5">
+            <p className="text-[11px] text-teal-800/80 sm:text-xs">ตำแหน่งที่เปิดรับ</p>
+            <p className="font-display mt-1 text-sm font-semibold text-teal-950 sm:text-base">
               พยาบาลวิชาชีพ (RN)
             </p>
           </div>
-          <div className="rounded-2xl bg-white/65 px-4 py-3.5 border border-white/80">
-            <p className="text-xs text-teal-800/80">หน่วยงาน</p>
-            <p className="font-display mt-1 text-base font-semibold text-teal-950">
+          <div className="rounded-2xl bg-white/65 px-3.5 py-3 border border-white/80 sm:px-4 sm:py-3.5">
+            <p className="text-[11px] text-teal-800/80 sm:text-xs">หน่วยงาน</p>
+            <p className="font-display mt-1 text-sm font-semibold text-teal-950 sm:text-base">
               ห้องพยาบาล · อาชีวอนามัย
             </p>
           </div>
-          <div className="rounded-2xl bg-white/65 px-4 py-3.5 border border-white/80">
-            <p className="text-xs text-teal-800/80">สถานที่ปฏิบัติงาน</p>
-            <p className="font-display mt-1 text-base font-semibold text-teal-950">
+          <div className="rounded-2xl bg-white/65 px-3.5 py-3 border border-white/80 sm:px-4 sm:py-3.5">
+            <p className="text-[11px] text-teal-800/80 sm:text-xs">สถานที่ปฏิบัติงาน</p>
+            <p className="font-display mt-1 text-sm font-semibold text-teal-950 sm:text-base">
               อ.หนองเรือ จ.ขอนแก่น
             </p>
           </div>
-          <div className="rounded-2xl bg-white/65 px-4 py-3.5 border border-white/80">
-            <p className="text-xs text-teal-800/80">รอบการรับสมัคร</p>
-            <p className="font-display mt-1 text-base font-semibold text-teal-950 tabular-nums">
+          <div className="rounded-2xl bg-white/65 px-3.5 py-3 border border-white/80 sm:px-4 sm:py-3.5">
+            <p className="text-[11px] text-teal-800/80 sm:text-xs">รอบการรับสมัคร</p>
+            <p className="font-display mt-1 text-sm font-semibold text-teal-950 tabular-nums sm:text-base">
               ประจำปี 2570
             </p>
           </div>

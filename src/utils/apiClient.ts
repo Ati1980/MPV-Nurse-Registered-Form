@@ -20,6 +20,12 @@ import type {
   WorkExperienceItem,
 } from '../types/application.ts';
 import { createDefaultEducationRows } from './applicationHelpers.ts';
+import {
+  deleteSubmittedFilesFromIdb,
+  loadSubmittedFileFromIdb,
+  saveSingleSubmittedFileToIdb,
+  saveSubmittedFilesToIdb,
+} from './draftStorage.ts';
 
 const FALLBACK_STORAGE_KEY = 'mpv_nurse_2570_submitted_records_v1';
 export const NURSE_REGISTER_COLLECTION = 'nurse_register';
@@ -322,7 +328,7 @@ export async function submitApplicationApi(
       await mainBatch.commit();
 
       const CHUNK_SIZE = 700_000;
-      const MAX_BATCH_CHARS = 3_200_000;
+      const MAX_BATCH_CHARS = 1_500_000;
       const fileWrites: Array<{
         docId: string;
         payload: {
@@ -376,7 +382,7 @@ export async function submitApplicationApi(
           const itemChars = item.payload.dataUrl.length;
           if (
             currentBatchCount > 0 &&
-            (currentBatchChars + itemChars > MAX_BATCH_CHARS || currentBatchCount >= 10)
+            (currentBatchChars + itemChars > MAX_BATCH_CHARS || currentBatchCount >= 2)
           ) {
             await currentBatch.commit();
             currentBatch = writeBatch(db);
@@ -408,6 +414,9 @@ export async function submitApplicationApi(
     }),
   };
 
+  // Persist full PDF/PNG payloads locally in IndexedDB so large attachments remain readable
+  await saveSubmittedFilesToIdb(record.applicationId, recordWithLocalData.documents);
+
   const deduped = existing.filter((r) => r.applicationId !== record.applicationId);
   writeLocalRecords([recordWithLocalData, ...deduped]);
   return record;
@@ -420,17 +429,27 @@ export async function attachMissingApplicationFileApi(
   mimeType: string,
   sizeBytes: number
 ): Promise<void> {
-  if (!db || !auth?.currentUser || !auth.currentUser.emailVerified) {
-    throw new Error('กรุณาเข้าสู่ระบบบัญชีผู้ดูแล HR บนคลาวด์ก่อนอัปโหลดไฟล์');
-  }
-  const firestoreDb = db;
   const safeDocId = fileDoc.id.replace(/[^a-zA-Z0-9_-]/g, '-');
   if (!safeDocId || !dataUrl.startsWith('data:')) {
     throw new Error('ไฟล์ไม่ถูกต้อง');
   }
 
+  // Always persist in IndexedDB so preview/print works immediately in this browser
+  await saveSingleSubmittedFileToIdb(
+    applicationId,
+    fileDoc.id,
+    dataUrl,
+    mimeType || fileDoc.mimeType
+  );
+
+  // Also persist chunked file to Firestore when HR admin is signed into Firebase
+  if (!db || !auth?.currentUser || !auth.currentUser.emailVerified) {
+    return;
+  }
+  const firestoreDb = db;
+
   const CHUNK_SIZE = 700_000;
-  const MAX_BATCH_CHARS = 3_200_000;
+  const MAX_BATCH_CHARS = 1_500_000;
   const chunkCount = Math.max(1, Math.ceil(dataUrl.length / CHUNK_SIZE));
   const filePath = `${NURSE_REGISTER_COLLECTION}/${applicationId}/files/${safeDocId}`;
 
@@ -444,7 +463,7 @@ export async function attachMissingApplicationFileApi(
       const chunkDocId = chunkIndex === 0 ? safeDocId : `${safeDocId}__c${chunkIndex}`;
       if (
         currentBatchCount > 0 &&
-        (currentBatchChars + slice.length > MAX_BATCH_CHARS || currentBatchCount >= 10)
+        (currentBatchChars + slice.length > MAX_BATCH_CHARS || currentBatchCount >= 2)
       ) {
         await currentBatch.commit();
         currentBatch = writeBatch(firestoreDb);
@@ -713,16 +732,24 @@ export async function updateApplicationStatusApi(
 }
 
 function dataUrlToBlob(dataUrl: string): Blob | null {
-  const match = /^data:([^;]+);base64,(.+)$/.exec(dataUrl);
-  if (!match) return null;
-  const mimeType = match[1];
-  const binaryStr = atob(match[2]);
-  const len = binaryStr.length;
-  const bytes = new Uint8Array(len);
-  for (let i = 0; i < len; i += 1) {
-    bytes[i] = binaryStr.charCodeAt(i);
+  if (!dataUrl.startsWith('data:')) return null;
+  const commaIdx = dataUrl.indexOf(',');
+  if (commaIdx === -1) return null;
+  const header = dataUrl.slice(5, commaIdx);
+  const base64Part = dataUrl.slice(commaIdx + 1).replace(/\s/g, '');
+  if (!header.includes(';base64') || !base64Part) return null;
+  const mimeType = header.split(';')[0] || 'application/octet-stream';
+  try {
+    const binaryStr = atob(base64Part);
+    const len = binaryStr.length;
+    const bytes = new Uint8Array(len);
+    for (let i = 0; i < len; i += 1) {
+      bytes[i] = binaryStr.charCodeAt(i);
+    }
+    return new Blob([bytes], { type: mimeType });
+  } catch {
+    return null;
   }
-  return new Blob([bytes], { type: mimeType });
 }
 
 export async function resolveApplicationFileApi(
@@ -757,11 +784,23 @@ export async function resolveApplicationFileApi(
         };
       }
     } catch {
-      // Fall through to Firestore subcollection lookup
+      // Fall through to IndexedDB / Firestore lookup
     }
   }
 
-  // 3. Firestore `/nurse_register/{applicationId}/files/{docId}` subcollection (supports chunked files)
+  // 3. Local IndexedDB cache (full-size PDF/PNG payloads preserved even without Firestore)
+  const idbFile = await loadSubmittedFileFromIdb(applicationId, fileDoc.id);
+  if (idbFile?.dataUrl) {
+    const blob = dataUrlToBlob(idbFile.dataUrl);
+    if (blob) {
+      return {
+        objectUrl: URL.createObjectURL(blob),
+        mimeType: idbFile.mimeType || blob.type || fileDoc.mimeType,
+      };
+    }
+  }
+
+  // 4. Firestore `/nurse_register/{applicationId}/files/{docId}` subcollection (supports chunked files)
   if (db && auth?.currentUser && auth.currentUser.emailVerified) {
     const firestoreDb = db;
     const safeDocId = fileDoc.id.replace(/[^a-zA-Z0-9_-]/g, '-');
@@ -814,6 +853,12 @@ export async function resolveApplicationFileApi(
           if (fullDataUrl) {
             const blob = dataUrlToBlob(fullDataUrl);
             if (blob) {
+              void saveSingleSubmittedFileToIdb(
+                applicationId,
+                fileDoc.id,
+                fullDataUrl,
+                stored.mimeType || blob.type || fileDoc.mimeType
+              );
               return {
                 objectUrl: URL.createObjectURL(blob),
                 mimeType: stored.mimeType || blob.type || fileDoc.mimeType,
@@ -890,7 +935,8 @@ export async function deleteApplicationApi(
     }
   }
 
-  // 3. Remove from localStorage fallback
+  // 3. Remove from localStorage & IndexedDB cache
+  await deleteSubmittedFilesFromIdb(applicationId, docIds);
   const records = readLocalRecords();
   writeLocalRecords(records.filter((r) => r.applicationId !== applicationId));
 }

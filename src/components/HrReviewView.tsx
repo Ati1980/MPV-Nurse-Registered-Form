@@ -767,7 +767,7 @@ export function HrReviewView({ onLogout }: HrReviewViewProps) {
                 ) : previewState.error ? (
                   <div className="my-auto max-w-md rounded-2xl border border-amber-200 bg-amber-50 p-5 text-center text-sm text-amber-900">
                     <p>{previewState.error}</p>
-                    {selectedApp && isCloudAdmin && (
+                    {selectedApp && (
                       <label className="btn-lift mt-4 inline-flex min-h-[40px] cursor-pointer items-center gap-2 rounded-xl bg-teal-800 px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-teal-900">
                         {previewState.uploadingRecovery ? (
                           <Loader2 className="h-4 w-4 animate-spin" />

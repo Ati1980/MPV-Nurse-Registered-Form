@@ -23,7 +23,6 @@ const THAI_ONLY_FIELDS = new Set<keyof PersonalInformation>([
 const DIGITS_ONLY_FIELDS = new Set<keyof PersonalInformation>([
   'mobileNumber',
   'idCardOrPassport',
-  'presentLandLine',
 ]);
 
 export function StepPersonalInfo({
@@ -329,7 +328,7 @@ export function StepPersonalInfo({
           </div>
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-12">
-            <div className="sm:col-span-8">
+            <div className="sm:col-span-12">
               <textarea
                 id="presentAddress"
                 rows={2}
@@ -342,27 +341,6 @@ export function StepPersonalInfo({
                 }`}
               />
               {renderError('personalInfo.presentAddress')}
-            </div>
-
-            <div className="sm:col-span-4">
-              <label htmlFor="presentLandLine" className="block text-sm font-semibold text-teal-950">
-                โทรศัพท์ (Telephone)
-              </label>
-              <input
-                id="presentLandLine"
-                type="tel"
-                inputMode="numeric"
-                pattern="[0-9]*"
-                value={personalInfo.presentLandLine}
-                disabled={personalInfo.sameAsPermanent}
-                onChange={(e) => updateField('presentLandLine', e.target.value)}
-                placeholder="เบอร์โทรศัพท์บ้าน (ถ้ามี)"
-                className={`glass-input mt-1.5 w-full min-h-[44px] rounded-xl px-3.5 py-2.5 text-sm text-teal-950 font-mono tabular-nums placeholder:font-sans placeholder:text-teal-900/40 ${
-                  personalInfo.sameAsPermanent ? 'opacity-70 bg-teal-50/70' : ''
-                }`}
-              />
-              {renderFieldHint('presentLandLine')}
-              {renderError('personalInfo.presentLandLine')}
             </div>
           </div>
         </div>

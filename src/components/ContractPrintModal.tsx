@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Loader2, Printer, RotateCcw, X } from 'lucide-react';
+import { FileDown, Loader2, Printer, RotateCcw, X } from 'lucide-react';
 import type { DocumentSlotKey, SubmittedApplicationRecord } from '../types/application.ts';
 import { resolveApplicationFileApi } from '../utils/apiClient.ts';
+import { exportContractToWordDocx } from '../utils/contractWordExport.ts';
 import { renderPdfBlobToImageUrls } from '../utils/pdfRenderHelper.ts';
 
 const CONTRACT_ATTACHMENT_SLOTS: Array<{
@@ -171,9 +172,11 @@ interface ContractDocumentSetProps {
 function EditableSpan({
   value,
   styleConfig,
+  nowrap = false,
 }: {
   value: string;
   styleConfig?: FieldTextStyle;
+  nowrap?: boolean;
 }) {
   const isBold = styleConfig?.bold ?? false;
   const sizeClass = SIZE_CLASS_MAP[styleConfig?.sizePt ?? 16] || 'text-[16pt]';
@@ -181,7 +184,7 @@ function EditableSpan({
     <span
       className={`rounded bg-amber-100/80 px-1 py-0.5 text-slate-950 print:bg-transparent print:px-0 print:py-0 ${sizeClass} ${
         isBold ? 'font-bold' : 'font-normal'
-      }`}
+      } ${nowrap ? 'whitespace-nowrap' : ''}`}
     >
       {value || '....................'}
     </span>
@@ -255,13 +258,25 @@ function ContractDocumentSet({ label, fields, fieldStyles }: ContractDocumentSet
       <p className="mt-3 text-justify indent-10">
         หนังสือสัญญาว่าจ้างนี้ทำขึ้นระหว่าง{' '}
         <EditableSpan value={fields.companyName} styleConfig={fieldStyles.companyName} /> โดย{' '}
-        <EditableSpan value={fields.authorizedPerson} styleConfig={fieldStyles.authorizedPerson} />{' '}
+        <EditableSpan
+          value={fields.authorizedPerson}
+          styleConfig={fieldStyles.authorizedPerson}
+          nowrap
+        />{' '}
         ตำแหน่ง{' '}
         <EditableSpan value={fields.authorizedPosition} styleConfig={fieldStyles.authorizedPosition} />{' '}
         เป็นผู้รับมอบอำนาจกระทำการแทน บริษัทฯ ซึ่งต่อไปนี้เรียกว่า “บริษัทฯ” ฝ่ายหนึ่ง กับ{' '}
-        <EditableSpan value={fields.contractorName} styleConfig={fieldStyles.contractorName} />{' '}
+        <EditableSpan
+          value={fields.contractorName}
+          styleConfig={fieldStyles.contractorName}
+          nowrap
+        />{' '}
         เลขบัตรประชาชน{' '}
-        <EditableSpan value={fields.contractorIdCard} styleConfig={fieldStyles.contractorIdCard} />{' '}
+        <EditableSpan
+          value={fields.contractorIdCard}
+          styleConfig={fieldStyles.contractorIdCard}
+          nowrap
+        />{' '}
         <EditableSpan value={fields.contractorAddress} styleConfig={fieldStyles.contractorAddress} />{' '}
         ซึ่งต่อไปนี้เรียกว่า “ผู้รับจ้าง” อีกฝ่ายหนึ่ง
         ทั้งสองฝ่ายได้ทำสัญญาต่อกันตามรายละเอียดดังต่อไปนี้
@@ -408,32 +423,44 @@ function ContractDocumentSet({ label, fields, fieldStyles }: ContractDocumentSet
           ทั้งสองฝ่ายได้อ่านและเข้าใจข้อความของสัญญาฉบับนี้เป็นอย่างดีแล้ว จึงลงลายมือชื่อไว้เป็นหลักฐาน
         </p>
 
-        <div className="mt-12 grid grid-cols-2 gap-x-8 gap-y-12 text-[16pt]">
+        <div className="mt-12 grid grid-cols-2 gap-x-6 gap-y-12 text-[16pt]">
           <div className="text-center">
-            <p>ลงชื่อ..........................................ผู้รับมอบอำนาจของบริษัทฯ</p>
+            <p className="whitespace-nowrap">ลงชื่อ..........................ผู้รับมอบอำนาจของบริษัทฯ</p>
             <p className="mt-1">
-              (<EditableSpan value={fields.authorizedPerson} styleConfig={fieldStyles.authorizedPerson} />)
+              (
+              <EditableSpan
+                value={fields.authorizedPerson}
+                styleConfig={fieldStyles.authorizedPerson}
+                nowrap
+              />
+              )
             </p>
           </div>
 
           <div className="text-center">
-            <p>ลงชื่อ.......................................... ผู้รับจ้าง</p>
+            <p className="whitespace-nowrap">ลงชื่อ..............................ผู้รับจ้าง</p>
             <p className="mt-1">
-              (<EditableSpan value={fields.contractorName} styleConfig={fieldStyles.contractorName} />)
+              (
+              <EditableSpan
+                value={fields.contractorName}
+                styleConfig={fieldStyles.contractorName}
+                nowrap
+              />
+              )
             </p>
           </div>
 
           <div className="text-center">
-            <p>ลงชื่อ..........................................พยาน</p>
+            <p className="whitespace-nowrap">ลงชื่อ..............................พยาน</p>
             <p className="mt-1">
-              (<EditableSpan value={fields.witness1} styleConfig={fieldStyles.witness1} />)
+              (<EditableSpan value={fields.witness1} styleConfig={fieldStyles.witness1} nowrap />)
             </p>
           </div>
 
           <div className="text-center">
-            <p>ลงชื่อ..........................................พยาน</p>
+            <p className="whitespace-nowrap">ลงชื่อ..............................พยาน</p>
             <p className="mt-1">
-              (<EditableSpan value={fields.witness2} styleConfig={fieldStyles.witness2} />)
+              (<EditableSpan value={fields.witness2} styleConfig={fieldStyles.witness2} nowrap />)
             </p>
           </div>
         </div>
@@ -454,6 +481,7 @@ export function ContractPrintModal({ open, applicant, onClose }: ContractPrintMo
   const [activeFieldKey, setActiveFieldKey] = useState<keyof ContractFields>('contractorName');
   const [includeCopy, setIncludeCopy] = useState(true);
   const [includeAttachments, setIncludeAttachments] = useState(true);
+  const [exportingWord, setExportingWord] = useState(false);
   const [attachments, setAttachments] = useState<ResolvedContractAttachment[]>(() =>
     CONTRACT_ATTACHMENT_SLOTS.map((slot) => ({
       slotKey: slot.slotKey,
@@ -662,6 +690,22 @@ export function ContractPrintModal({ open, applicant, onClose }: ContractPrintMo
     setFieldStyles(buildDefaultFieldStyles());
   };
 
+  const handleExportWord = async () => {
+    setExportingWord(true);
+    try {
+      await exportContractToWordDocx({
+        fields,
+        fieldStyles,
+        applicationId: applicant.applicationId,
+        includeCopy,
+        includeAttachments,
+        attachments,
+      });
+    } finally {
+      setExportingWord(false);
+    }
+  };
+
   return createPortal(
     <div
       role="dialog"
@@ -696,6 +740,20 @@ export function ContractPrintModal({ open, applicant, onClose }: ContractPrintMo
               <span>กำลังเตรียมไฟล์แนบ 4 แผ่น...</span>
             </span>
           )}
+
+          <button
+            type="button"
+            onClick={() => void handleExportWord()}
+            disabled={loadingAttachments || exportingWord}
+            className="btn-lift inline-flex min-h-[40px] items-center gap-2 rounded-xl border border-sky-700/25 bg-sky-50 px-4 py-2 text-xs font-semibold text-sky-950 shadow-sm hover:bg-sky-100 disabled:opacity-60 cursor-pointer"
+          >
+            {exportingWord ? (
+              <Loader2 className="h-4 w-4 animate-spin text-sky-800" />
+            ) : (
+              <FileDown className="h-4 w-4 text-sky-800" />
+            )}
+            <span>{exportingWord ? 'กำลังสร้างไฟล์ Word...' : 'Save เป็น Word'}</span>
+          </button>
 
           <button
             type="button"

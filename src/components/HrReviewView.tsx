@@ -90,9 +90,9 @@ export function HrReviewView() {
           <button
             type="button"
             onClick={() => void fetchApplications()}
-            className="inline-flex min-h-[42px] items-center gap-2 rounded-xl border border-teal-900/15 bg-white/80 px-4 py-2 text-sm font-medium text-teal-950 hover:bg-white cursor-pointer"
+            className="btn-lift inline-flex min-h-[42px] items-center gap-2 rounded-xl border border-teal-900/15 bg-white/80 px-4 py-2 text-sm font-medium text-teal-950 hover:bg-white cursor-pointer"
           >
-            <RefreshCw className="h-4 w-4" />
+            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
             <span>รีเฟรชรายการ</span>
           </button>
         </div>
@@ -127,7 +127,7 @@ export function HrReviewView() {
                     key={app.applicationId}
                     type="button"
                     onClick={() => handleSelectApp(app)}
-                    className={`w-full rounded-2xl border p-4 text-left transition-all cursor-pointer ${
+                    className={`interactive-card w-full rounded-2xl border p-4 text-left cursor-pointer ${
                       active
                         ? 'border-teal-700 bg-white shadow-sm'
                         : 'border-teal-900/10 bg-white/60 hover:bg-white/90'
@@ -153,7 +153,7 @@ export function HrReviewView() {
 
             {/* Selected Applicant Details & Status Controls */}
             {selectedApp && (
-              <div className="space-y-6 lg:col-span-8">
+              <div key={selectedApp.applicationId} className="animate-step-enter space-y-6 lg:col-span-8">
                 <div className="rounded-2xl border border-teal-900/12 bg-white/80 p-5">
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div>
@@ -199,7 +199,7 @@ export function HrReviewView() {
                           type="button"
                           disabled={savingStatus}
                           onClick={() => void handleUpdateStatus(statusOption)}
-                          className={`min-h-[40px] rounded-xl px-3.5 py-2 text-xs font-semibold transition-colors cursor-pointer ${
+                          className={`btn-lift min-h-[40px] rounded-xl px-3.5 py-2 text-xs font-semibold cursor-pointer ${
                             isCurrent
                               ? 'bg-teal-800 text-white'
                               : 'border border-teal-900/15 bg-white text-teal-950 hover:bg-teal-50'

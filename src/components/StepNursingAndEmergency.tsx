@@ -35,7 +35,7 @@ export function StepNursingAndEmergency({
 
   const renderError = (key: string) => {
     if (!errors[key]) return null;
-    return <p className="mt-1.5 text-xs font-medium text-rose-700">{errors[key]}</p>;
+    return <p className="animate-fade-slide-down mt-1.5 text-xs font-medium text-rose-700">{errors[key]}</p>;
   };
 
   return (
@@ -97,7 +97,13 @@ export function StepNursingAndEmergency({
         </div>
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-          <label className="flex min-h-[52px] cursor-pointer items-center gap-3 rounded-xl border border-teal-900/15 bg-white/75 px-4 py-3 text-sm font-medium text-teal-950 hover:bg-white">
+          <label
+            className={`btn-lift flex min-h-[52px] cursor-pointer items-center gap-3 rounded-xl border px-4 py-3 text-sm font-medium ${
+              nursingQualification.occupationalHealthTrained
+                ? 'border-teal-700 bg-teal-800/10 text-teal-950 shadow-sm'
+                : 'border-teal-900/15 bg-white/75 text-teal-950 hover:bg-white'
+            }`}
+          >
             <input
               type="checkbox"
               checked={nursingQualification.occupationalHealthTrained}
@@ -107,7 +113,13 @@ export function StepNursingAndEmergency({
             <span>ผ่านการอบรมพยาบาลอาชีวอนามัย (60 ชม.)</span>
           </label>
 
-          <label className="flex min-h-[52px] cursor-pointer items-center gap-3 rounded-xl border border-teal-900/15 bg-white/75 px-4 py-3 text-sm font-medium text-teal-950 hover:bg-white">
+          <label
+            className={`btn-lift flex min-h-[52px] cursor-pointer items-center gap-3 rounded-xl border px-4 py-3 text-sm font-medium ${
+              nursingQualification.blsAclsCertified
+                ? 'border-teal-700 bg-teal-800/10 text-teal-950 shadow-sm'
+                : 'border-teal-900/15 bg-white/75 text-teal-950 hover:bg-white'
+            }`}
+          >
             <input
               type="checkbox"
               checked={nursingQualification.blsAclsCertified}
@@ -117,7 +129,13 @@ export function StepNursingAndEmergency({
             <span>มีใบรับรอง BLS / ACLS</span>
           </label>
 
-          <label className="flex min-h-[52px] cursor-pointer items-center gap-3 rounded-xl border border-teal-900/15 bg-white/75 px-4 py-3 text-sm font-medium text-teal-950 hover:bg-white">
+          <label
+            className={`btn-lift flex min-h-[52px] cursor-pointer items-center gap-3 rounded-xl border px-4 py-3 text-sm font-medium ${
+              nursingQualification.shiftWorkReady
+                ? 'border-teal-700 bg-teal-800/10 text-teal-950 shadow-sm'
+                : 'border-teal-900/15 bg-white/75 text-teal-950 hover:bg-white'
+            }`}
+          >
             <input
               type="checkbox"
               checked={nursingQualification.shiftWorkReady}
@@ -130,7 +148,7 @@ export function StepNursingAndEmergency({
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-12">
           {nursingQualification.occupationalHealthTrained && (
-            <div className="sm:col-span-4">
+            <div className="animate-fade-scale sm:col-span-4">
               <label
                 htmlFor="occupationalHealthHours"
                 className="block text-sm font-semibold text-teal-950"

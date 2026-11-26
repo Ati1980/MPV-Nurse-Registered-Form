@@ -53,7 +53,7 @@ export function StepPersonalInfo({
 
   const renderError = (key: string) => {
     if (!errors[key]) return null;
-    return <p className="mt-1.5 text-xs font-medium text-rose-700">{errors[key]}</p>;
+    return <p className="animate-fade-slide-down mt-1.5 text-xs font-medium text-rose-700">{errors[key]}</p>;
   };
 
   return (
@@ -78,7 +78,7 @@ export function StepPersonalInfo({
             return (
               <label
                 key={option}
-                className={`flex min-h-[46px] cursor-pointer items-center gap-3 rounded-xl border px-4 py-2.5 text-sm font-medium transition-all duration-150 ${
+                className={`btn-lift flex min-h-[46px] cursor-pointer items-center gap-3 rounded-xl border px-4 py-2.5 text-sm font-medium ${
                   selected
                     ? 'border-teal-700 bg-teal-800/10 text-teal-950 shadow-sm'
                     : 'border-teal-900/15 bg-white/75 text-teal-900 hover:bg-white'

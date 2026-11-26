@@ -121,7 +121,7 @@ export function StepDocuments({
       {uploadAlert && (
         <div
           role="alert"
-          className="flex items-center justify-between gap-3 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-800"
+          className="animate-error-shake flex items-center justify-between gap-3 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-800"
         >
           <span>{uploadAlert}</span>
           <button
@@ -144,7 +144,7 @@ export function StepDocuments({
           return (
             <div
               key={slot.key}
-              className={`flex flex-col justify-between rounded-2xl border p-4 sm:p-5 transition-colors ${
+              className={`interactive-card flex flex-col justify-between rounded-2xl border p-4 sm:p-5 ${
                 slotError
                   ? 'border-rose-300 bg-rose-50/50'
                   : slotDocs.length > 0
@@ -181,7 +181,7 @@ export function StepDocuments({
                       return (
                         <li
                           key={doc.id}
-                          className="flex items-center justify-between gap-2.5 rounded-xl border border-teal-900/10 bg-white px-3 py-2"
+                          className="animate-fade-scale flex items-center justify-between gap-2.5 rounded-xl border border-teal-900/10 bg-white px-3 py-2"
                         >
                           <div className="flex min-w-0 items-center gap-2.5">
                             {isImage && previewSrc ? (
@@ -239,13 +239,17 @@ export function StepDocuments({
                   }}
                   onDragLeave={() => setDragOverSlot(null)}
                   onDrop={(e) => handleDrop(slot.key, e)}
-                  className={`flex min-h-[64px] cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed px-3 py-3 text-center transition-colors ${
+                  className={`flex min-h-[64px] cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed px-3 py-3 text-center transition-all duration-200 ${
                     isDragOver
-                      ? 'border-teal-700 bg-teal-100/60'
-                      : 'border-teal-800/30 bg-white/60 hover:bg-white'
+                      ? 'scale-[1.015] border-teal-700 bg-teal-100/70 shadow-sm'
+                      : 'border-teal-800/30 bg-white/60 hover:border-teal-700/60 hover:bg-white'
                   }`}
                 >
-                  <UploadCloud className="h-5 w-5 text-teal-700" />
+                  <UploadCloud
+                    className={`h-5 w-5 text-teal-700 transition-transform duration-200 ${
+                      isDragOver ? 'animate-bounce text-teal-800' : ''
+                    }`}
+                  />
                   <span className="mt-1 text-xs font-medium text-teal-950">
                     {slotDocs.length > 0 && !slot.allowMultiple
                       ? 'คลิกหรือลากไฟล์มาวางเพื่อเปลี่ยนไฟล์'
@@ -323,7 +327,7 @@ export function StepDocuments({
           aria-label={`ตัวอย่างเอกสาร ${previewDoc.fileName}`}
           className="fixed inset-0 z-50 flex items-center justify-center bg-teal-950/60 p-4 backdrop-blur-sm"
         >
-          <div className="flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl">
+          <div className="animate-fade-scale flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl">
             <div className="flex items-center justify-between border-b border-teal-900/10 px-5 py-3.5">
               <div className="min-w-0">
                 <p className="truncate text-sm font-semibold text-teal-950">{previewDoc.fileName}</p>

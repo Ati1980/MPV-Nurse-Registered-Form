@@ -1,4 +1,4 @@
-import { CheckCircle2, Edit3, Printer, RotateCcw } from 'lucide-react';
+import { CheckCircle2, Edit3, Loader2, Printer, RotateCcw } from 'lucide-react';
 import type { ApplicationFormData, SubmittedApplicationRecord } from '../types/application.ts';
 import { formatThaiDateTime } from '../utils/applicationHelpers.ts';
 import { PrintableApplicationSheet } from './PrintableApplicationSheet.tsx';
@@ -26,11 +26,11 @@ export function ReviewAndSubmit({
 }: ReviewAndSubmitProps) {
   if (submittedRecord) {
     return (
-      <div className="space-y-6">
+      <div className="animate-fade-scale space-y-6">
         <div className="no-print rounded-2xl border border-emerald-200 bg-emerald-50/90 p-6">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div className="flex items-start gap-3.5">
-              <CheckCircle2 className="mt-0.5 h-7 w-7 shrink-0 text-emerald-700" />
+              <CheckCircle2 className="animate-pop-check mt-0.5 h-7 w-7 shrink-0 text-emerald-700" />
               <div>
                 <h2 className="font-display text-xl font-bold text-emerald-950">
                   ส่งใบสมัครพยาบาลวิชาชีพสำเร็จเรียบร้อยแล้ว
@@ -60,7 +60,7 @@ export function ReviewAndSubmit({
             <button
               type="button"
               onClick={() => window.print()}
-              className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-xl bg-teal-800 px-5 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-teal-900 cursor-pointer"
+              className="btn-lift inline-flex min-h-[44px] items-center justify-center gap-2 rounded-xl bg-teal-800 px-5 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-teal-900 cursor-pointer"
             >
               <Printer className="h-4 w-4" />
               <span>พิมพ์ใบสมัคร / บันทึกเป็น PDF</span>
@@ -69,7 +69,7 @@ export function ReviewAndSubmit({
             <button
               type="button"
               onClick={() => onGoTrackStatus(submittedRecord.applicationId)}
-              className="inline-flex min-h-[44px] items-center justify-center rounded-xl border border-teal-900/20 bg-white px-4 py-2.5 text-sm font-medium text-teal-950 hover:bg-teal-50 cursor-pointer"
+              className="btn-lift inline-flex min-h-[44px] items-center justify-center rounded-xl border border-teal-900/20 bg-white px-4 py-2.5 text-sm font-medium text-teal-950 hover:bg-teal-50 cursor-pointer"
             >
               ตรวจสอบสถานะใบสมัคร
             </button>
@@ -77,7 +77,7 @@ export function ReviewAndSubmit({
             <button
               type="button"
               onClick={onStartNewApplication}
-              className="inline-flex min-h-[44px] items-center justify-center gap-1.5 rounded-xl px-4 py-2.5 text-sm font-medium text-teal-900 hover:bg-white/70 cursor-pointer"
+              className="btn-lift inline-flex min-h-[44px] items-center justify-center gap-1.5 rounded-xl px-4 py-2.5 text-sm font-medium text-teal-900 hover:bg-white/70 cursor-pointer"
             >
               <RotateCcw className="h-4 w-4" />
               <span>กรอกใบสมัครใหม่</span>
@@ -117,7 +117,7 @@ export function ReviewAndSubmit({
               key={btn.idx}
               type="button"
               onClick={() => onJumpToStep(btn.idx)}
-              className="inline-flex min-h-[38px] items-center gap-1.5 rounded-xl border border-teal-900/15 bg-white/80 px-3 py-1.5 text-xs font-medium text-teal-950 hover:bg-white cursor-pointer"
+              className="btn-lift inline-flex min-h-[38px] items-center gap-1.5 rounded-xl border border-teal-900/15 bg-white/80 px-3 py-1.5 text-xs font-medium text-teal-950 hover:bg-white cursor-pointer"
             >
               <Edit3 className="h-3.5 w-3.5" />
               <span>{btn.label}</span>
@@ -129,7 +129,7 @@ export function ReviewAndSubmit({
       {submitError && (
         <div
           role="alert"
-          className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-800"
+          className="animate-error-shake rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-800"
         >
           {submitError}
         </div>
@@ -141,7 +141,7 @@ export function ReviewAndSubmit({
         <button
           type="button"
           onClick={() => window.print()}
-          className="inline-flex min-h-[46px] w-full items-center justify-center gap-2 rounded-xl border border-teal-900/15 bg-white/85 px-4 py-2.5 text-sm font-medium text-teal-950 hover:bg-white cursor-pointer sm:w-auto"
+          className="btn-lift inline-flex min-h-[46px] w-full items-center justify-center gap-2 rounded-xl border border-teal-900/15 bg-white/85 px-4 py-2.5 text-sm font-medium text-teal-950 hover:bg-white cursor-pointer sm:w-auto"
         >
           <Printer className="h-4 w-4" />
           <span>พิมพ์ตัวอย่างเอกสาร</span>
@@ -151,9 +151,10 @@ export function ReviewAndSubmit({
           type="button"
           disabled={isSubmitting}
           onClick={onSubmitApplication}
-          className="inline-flex min-h-[48px] w-full items-center justify-center rounded-xl bg-teal-800 px-7 py-3 text-base font-semibold text-white shadow-md shadow-teal-950/15 transition-all hover:bg-teal-900 disabled:opacity-60 cursor-pointer sm:w-auto"
+          className="btn-lift inline-flex min-h-[48px] w-full items-center justify-center gap-2 rounded-xl bg-teal-800 px-7 py-3 text-base font-semibold text-white shadow-md shadow-teal-950/15 hover:bg-teal-900 disabled:opacity-60 cursor-pointer sm:w-auto"
         >
-          {isSubmitting ? 'กำลังบันทึกและส่งใบสมัคร...' : 'ยืนยันส่งใบสมัครออนไลน์'}
+          {isSubmitting && <Loader2 className="h-4 w-4 animate-spin" />}
+          <span>{isSubmitting ? 'กำลังบันทึกและส่งใบสมัคร...' : 'ยืนยันส่งใบสมัครออนไลน์'}</span>
         </button>
       </div>
     </div>

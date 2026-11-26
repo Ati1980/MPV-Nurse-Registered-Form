@@ -60,16 +60,16 @@ export function HeroOverview({
               <button
                 type="button"
                 onClick={onStartApply}
-                className="inline-flex min-h-[48px] w-full items-center justify-center gap-2 rounded-2xl bg-teal-800 px-6 py-3 text-base font-semibold text-white shadow-md shadow-teal-950/15 transition-all duration-150 hover:bg-teal-900 active:scale-[0.98] whitespace-nowrap shrink-0 cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-700 sm:w-auto"
+                className="btn-lift group inline-flex min-h-[48px] w-full items-center justify-center gap-2 rounded-2xl bg-teal-800 px-6 py-3 text-base font-semibold text-white shadow-md shadow-teal-950/15 hover:bg-teal-900 whitespace-nowrap shrink-0 cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-700 sm:w-auto"
               >
                 <span>{hasSavedDraft ? 'ดำเนินการกรอกใบสมัครต่อ' : 'เริ่มกรอกใบสมัครออนไลน์'}</span>
-                <ArrowRight className="h-4 w-4" />
+                <ArrowRight className="h-4 w-4 transition-transform duration-150 group-hover:translate-x-1" />
               </button>
 
               <button
                 type="button"
                 onClick={onTrackStatus}
-                className="inline-flex min-h-[48px] w-full items-center justify-center rounded-2xl border border-teal-900/15 bg-white/75 px-5 py-3 text-sm font-medium text-teal-950 transition-colors duration-150 hover:bg-white whitespace-nowrap shrink-0 cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-700 sm:w-auto"
+                className="btn-lift inline-flex min-h-[48px] w-full items-center justify-center rounded-2xl border border-teal-900/15 bg-white/75 px-5 py-3 text-sm font-medium text-teal-950 hover:bg-white whitespace-nowrap shrink-0 cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-700 sm:w-auto"
               >
                 ติดตามสถานะใบสมัคร
               </button>
@@ -107,25 +107,25 @@ export function HeroOverview({
 
         {/* Full-Width 4-Column Key Position Strip */}
         <div className="mt-6 grid grid-cols-2 gap-3 border-t border-teal-900/10 pt-5 sm:mt-8 sm:gap-4 sm:pt-7 lg:grid-cols-4">
-          <div className="rounded-2xl bg-white/65 px-3.5 py-3 border border-white/80 sm:px-4 sm:py-3.5">
+          <div className="interactive-card rounded-2xl bg-white/65 px-3.5 py-3 border border-white/80 sm:px-4 sm:py-3.5">
             <p className="text-[11px] text-teal-800/80 sm:text-xs">ตำแหน่งที่เปิดรับ</p>
             <p className="font-display mt-1 text-sm font-semibold text-teal-950 sm:text-base">
               พยาบาลวิชาชีพ (RN)
             </p>
           </div>
-          <div className="rounded-2xl bg-white/65 px-3.5 py-3 border border-white/80 sm:px-4 sm:py-3.5">
+          <div className="interactive-card rounded-2xl bg-white/65 px-3.5 py-3 border border-white/80 sm:px-4 sm:py-3.5">
             <p className="text-[11px] text-teal-800/80 sm:text-xs">หน่วยงาน</p>
             <p className="font-display mt-1 text-sm font-semibold text-teal-950 sm:text-base">
               ห้องพยาบาล · อาชีวอนามัย
             </p>
           </div>
-          <div className="rounded-2xl bg-white/65 px-3.5 py-3 border border-white/80 sm:px-4 sm:py-3.5">
+          <div className="interactive-card rounded-2xl bg-white/65 px-3.5 py-3 border border-white/80 sm:px-4 sm:py-3.5">
             <p className="text-[11px] text-teal-800/80 sm:text-xs">สถานที่ปฏิบัติงาน</p>
             <p className="font-display mt-1 text-sm font-semibold text-teal-950 sm:text-base">
               อ.หนองเรือ จ.ขอนแก่น
             </p>
           </div>
-          <div className="rounded-2xl bg-white/65 px-3.5 py-3 border border-white/80 sm:px-4 sm:py-3.5">
+          <div className="interactive-card rounded-2xl bg-white/65 px-3.5 py-3 border border-white/80 sm:px-4 sm:py-3.5">
             <p className="text-[11px] text-teal-800/80 sm:text-xs">รอบการรับสมัคร</p>
             <p className="font-display mt-1 text-sm font-semibold text-teal-950 tabular-nums sm:text-base">
               ประจำปี 2570
@@ -136,7 +136,7 @@ export function HeroOverview({
 
       {/* Qualifications & Recruitment Steps */}
       <section className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-12">
-        <div className="glass-panel rounded-3xl p-6 sm:p-8 lg:col-span-7">
+        <div className="glass-panel interactive-card animate-page-enter stagger-1 rounded-3xl p-6 sm:p-8 lg:col-span-7">
           <div className="flex items-center gap-2.5">
             <ShieldCheck className="h-5 w-5 text-teal-700 shrink-0" />
             <h2 className="font-display text-xl font-semibold text-teal-950">
@@ -153,7 +153,7 @@ export function HeroOverview({
           </ul>
         </div>
 
-        <div className="glass-panel rounded-3xl p-6 sm:p-8 lg:col-span-5">
+        <div className="glass-panel interactive-card animate-page-enter stagger-2 rounded-3xl p-6 sm:p-8 lg:col-span-5">
           <h2 className="font-display text-xl font-semibold text-teal-950">
             ขั้นตอนการกรอกใบสมัครออนไลน์
           </h2>

@@ -70,7 +70,7 @@ export function StepWorkAndEducation({
             </p>
           </div>
 
-          <label className="inline-flex min-h-[44px] cursor-pointer items-center gap-2.5 rounded-xl border border-teal-900/15 bg-white/75 px-3.5 py-2 text-sm font-medium text-teal-950 hover:bg-white">
+          <label className="btn-lift inline-flex min-h-[44px] cursor-pointer items-center gap-2.5 rounded-xl border border-teal-900/15 bg-white/75 px-3.5 py-2 text-sm font-medium text-teal-950 hover:bg-white">
             <input
               type="checkbox"
               checked={hasNoWorkExperience}
@@ -82,17 +82,17 @@ export function StepWorkAndEducation({
         </div>
 
         {errors['workExperiences'] && (
-          <p className="rounded-xl border border-rose-200 bg-rose-50/90 px-4 py-2.5 text-sm font-medium text-rose-800">
+          <p className="animate-error-shake rounded-xl border border-rose-200 bg-rose-50/90 px-4 py-2.5 text-sm font-medium text-rose-800">
             {errors['workExperiences']}
           </p>
         )}
 
         {!hasNoWorkExperience && (
-          <div className="space-y-4">
+          <div className="animate-fade-scale space-y-4">
             {workExperiences.map((row, index) => (
               <div
                 key={row.id}
-                className="rounded-2xl border border-teal-900/12 bg-white/65 p-4 sm:p-5"
+                className="animate-fade-scale rounded-2xl border border-teal-900/12 bg-white/65 p-4 sm:p-5 transition-colors"
               >
                 <div className="mb-4 flex items-center justify-between gap-3 border-b border-teal-900/10 pb-2.5">
                   <span className="font-display text-sm font-semibold text-teal-950">
@@ -235,7 +235,7 @@ export function StepWorkAndEducation({
             <button
               type="button"
               onClick={handleAddWorkRow}
-              className="inline-flex min-h-[44px] items-center gap-2 rounded-xl border border-dashed border-teal-700/40 bg-white/60 px-4 py-2 text-sm font-medium text-teal-900 transition-colors hover:bg-white cursor-pointer"
+              className="btn-lift inline-flex min-h-[44px] items-center gap-2 rounded-xl border border-dashed border-teal-700/40 bg-white/60 px-4 py-2 text-sm font-medium text-teal-900 hover:bg-white cursor-pointer"
             >
               <Plus className="h-4 w-4" />
               <span>เพิ่มประวัติการทำงาน</span>

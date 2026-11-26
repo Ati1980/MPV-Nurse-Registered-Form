@@ -82,9 +82,9 @@ export function StatusTrackerView({ initialCode = '' }: StatusTrackerViewProps) 
             <button
               type="submit"
               disabled={loading}
-              className="inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-xl bg-teal-800 px-5 py-2.5 text-sm font-semibold text-white hover:bg-teal-900 disabled:opacity-60 cursor-pointer"
+              className="btn-lift inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-xl bg-teal-800 px-5 py-2.5 text-sm font-semibold text-white hover:bg-teal-900 disabled:opacity-60 cursor-pointer"
             >
-              <Search className="h-4 w-4" />
+              <Search className={`h-4 w-4 ${loading ? 'animate-pulse' : ''}`} />
               <span>{loading ? 'กำลังค้นหา...' : 'ตรวจสอบสถานะ'}</span>
             </button>
           </div>
@@ -93,7 +93,7 @@ export function StatusTrackerView({ initialCode = '' }: StatusTrackerViewProps) 
         {error && (
           <div
             role="alert"
-            className="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-800"
+            className="animate-error-shake mt-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-800"
           >
             {error}
           </div>
@@ -101,7 +101,7 @@ export function StatusTrackerView({ initialCode = '' }: StatusTrackerViewProps) 
       </section>
 
       {result && (
-        <div className="mt-6 space-y-6">
+        <div className="animate-fade-scale mt-6 space-y-6">
           <div className="no-print glass-panel rounded-3xl p-6">
             <div className="flex flex-wrap items-center justify-between gap-4">
               <div>
@@ -120,7 +120,7 @@ export function StatusTrackerView({ initialCode = '' }: StatusTrackerViewProps) 
               <button
                 type="button"
                 onClick={() => window.print()}
-                className="inline-flex min-h-[44px] items-center gap-2 rounded-xl bg-teal-800 px-5 py-2.5 text-sm font-medium text-white hover:bg-teal-900 cursor-pointer"
+                className="btn-lift inline-flex min-h-[44px] items-center gap-2 rounded-xl bg-teal-800 px-5 py-2.5 text-sm font-medium text-white hover:bg-teal-900 cursor-pointer"
               >
                 <Printer className="h-4 w-4" />
                 <span>พิมพ์ใบสมัคร</span>

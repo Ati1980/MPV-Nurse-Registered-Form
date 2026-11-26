@@ -220,19 +220,19 @@ export default function App() {
   };
 
   return (
-    <div className="relative min-h-screen flex flex-col overflow-x-hidden">
-      {/* Fixed Full-Bleed Background Image (nurse form bg.jpg) + Soft Contrast Scrim */}
-      <div className="no-print fixed inset-0 -z-10 overflow-hidden bg-[#a8dfd0]">
+    <div className="relative isolate min-h-screen flex flex-col overflow-x-clip">
+      {/* Fixed Full-Bleed Background Image (nurse form bg.jpg) across all pages */}
+      <div
+        aria-hidden="true"
+        className="no-print pointer-events-none fixed inset-0 z-0 overflow-hidden select-none bg-[#a8dfd0]"
+      >
         <img
           src="/assets/aistudio/nurse_form_bg_433e63e2.jpg"
-          alt="พื้นหลังแบบฟอร์มรับสมัครพยาบาลวิชาชีพ"
+          alt=""
           referrerPolicy="no-referrer"
-          className="h-full w-full object-cover object-left-top"
+          className="animate-bg-breath h-full w-full object-cover object-[18%_top] sm:object-left-top"
         />
-        <div
-          aria-hidden="true"
-          className="absolute inset-0 bg-gradient-to-br from-white/50 via-emerald-50/40 to-teal-100/50"
-        />
+        <div className="absolute inset-0 bg-gradient-to-br from-white/15 via-transparent to-teal-900/5" />
       </div>
 
       {/* Clean 3-Zone Top Bar */}
@@ -246,109 +246,126 @@ export default function App() {
       />
 
       {/* Main Content */}
-      <main className="flex-1">
-        {activePage === 'overview' && (
-          <HeroOverview
-            hasSavedDraft={hasSavedDraft}
-            onStartApply={handleStartApply}
-            onTrackStatus={() => {
-              setActivePage('track');
-              scrollToTop();
-            }}
-          />
-        )}
+      <main className="relative z-10 flex-1">
+        <div key={activePage} className="animate-page-enter">
+          {activePage === 'overview' && (
+            <HeroOverview
+              hasSavedDraft={hasSavedDraft}
+              onStartApply={handleStartApply}
+              onTrackStatus={() => {
+                setActivePage('track');
+                scrollToTop();
+              }}
+            />
+          )}
 
-        {activePage === 'apply' && (
-          <div className="mx-auto max-w-5xl px-3.5 py-4 sm:px-6 sm:py-10">
-            {/* Form Header & Stepper */}
-            {!submittedRecord && (
-              <div className="no-print glass-panel mb-5 rounded-3xl p-4 sm:mb-6 sm:p-6">
-                <div className="flex flex-wrap items-start justify-between gap-3 sm:gap-4">
-                  <div>
-                    <p className="text-xs font-medium text-teal-800">
-                      โรงงานน้ำตาลมิตรภูเวียง <span aria-hidden="true">·</span> ประจำปี 2570
-                    </p>
-                    <h1 className="font-display mt-1 text-base font-bold text-teal-950 sm:text-2xl">
-                      ฟอร์มรับสมัครพยาบาลวิชาชีพ โรงงานน้ำตาลมิตรภูเวียง ประจำปี 2570
-                    </h1>
+          {activePage === 'apply' && (
+            <div className="mx-auto max-w-5xl px-3.5 py-4 sm:px-6 sm:py-10">
+              {/* Form Header & Stepper */}
+              {!submittedRecord && (
+                <div className="no-print glass-panel mb-5 rounded-3xl p-4 sm:mb-6 sm:p-6">
+                  <div className="flex flex-wrap items-start justify-between gap-3 sm:gap-4">
+                    <div>
+                      <p className="text-xs font-medium text-teal-800">
+                        โรงงานน้ำตาลมิตรภูเวียง <span aria-hidden="true">·</span> ประจำปี 2570
+                      </p>
+                      <h1 className="font-display mt-1 text-base font-bold text-teal-950 sm:text-2xl">
+                        ฟอร์มรับสมัครพยาบาลวิชาชีพ โรงงานน้ำตาลมิตรภูเวียง ประจำปี 2570
+                      </h1>
+                    </div>
+
+                    {!confirmResetOpen ? (
+                      <button
+                        type="button"
+                        onClick={() => setConfirmResetOpen(true)}
+                        className="btn-lift inline-flex min-h-[38px] items-center gap-1.5 rounded-xl border border-teal-900/15 bg-white/75 px-3 py-1.5 text-xs font-medium text-teal-900 hover:bg-white cursor-pointer"
+                      >
+                        <RotateCcw className="h-3.5 w-3.5" />
+                        <span>ล้างแบบฟอร์ม</span>
+                      </button>
+                    ) : (
+                      <div className="animate-fade-scale flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs">
+                        <span className="font-medium text-rose-900">ยืนยันล้างข้อมูลทั้งหมด?</span>
+                        <button
+                          type="button"
+                          onClick={handleResetDraft}
+                          className="btn-lift rounded-lg bg-rose-700 px-2.5 py-1 font-semibold text-white hover:bg-rose-800 cursor-pointer"
+                        >
+                          ยืนยัน
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setConfirmResetOpen(false)}
+                          className="btn-lift rounded-lg bg-white px-2.5 py-1 font-medium text-slate-700 hover:bg-slate-100 cursor-pointer"
+                        >
+                          ยกเลิก
+                        </button>
+                      </div>
+                    )}
                   </div>
 
-                  {!confirmResetOpen ? (
-                    <button
-                      type="button"
-                      onClick={() => setConfirmResetOpen(true)}
-                      className="inline-flex min-h-[38px] items-center gap-1.5 rounded-xl border border-teal-900/15 bg-white/75 px-3 py-1.5 text-xs font-medium text-teal-900 hover:bg-white cursor-pointer"
-                    >
-                      <RotateCcw className="h-3.5 w-3.5" />
-                      <span>ล้างแบบฟอร์ม</span>
-                    </button>
-                  ) : (
-                    <div className="flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs">
-                      <span className="font-medium text-rose-900">ยืนยันล้างข้อมูลทั้งหมด?</span>
-                      <button
-                        type="button"
-                        onClick={handleResetDraft}
-                        className="rounded-lg bg-rose-700 px-2.5 py-1 font-semibold text-white hover:bg-rose-800 cursor-pointer"
-                      >
-                        ยืนยัน
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setConfirmResetOpen(false)}
-                        className="rounded-lg bg-white px-2.5 py-1 font-medium text-slate-700 hover:bg-slate-100 cursor-pointer"
-                      >
-                        ยกเลิก
-                      </button>
-                    </div>
-                  )}
-                </div>
-
-                {/* Interactive Step Tabs */}
-                <div
-                  role="tablist"
-                  aria-label="ขั้นตอนการกรอกใบสมัคร"
-                  className="mt-4 flex gap-2 overflow-x-auto no-scrollbar pb-1 sm:mt-5 sm:grid sm:grid-cols-5 sm:overflow-visible sm:pb-0"
-                >
-                  {FORM_STEPS.map((step) => {
-                    const isActive = currentStep === step.index;
-                    return (
-                      <button
-                        key={step.index}
-                        type="button"
-                        role="tab"
-                        aria-selected={isActive}
-                        onClick={() => handleTabJump(step.index)}
-                        className={`flex min-h-[44px] shrink-0 items-center gap-2 rounded-xl px-3.5 py-2 text-left text-xs font-medium transition-all whitespace-nowrap cursor-pointer sm:shrink sm:px-3 ${
-                          isActive
-                            ? 'bg-teal-800 text-white shadow-sm'
-                            : 'border border-teal-900/10 bg-white/70 text-teal-950 hover:bg-white'
-                        }`}
-                      >
-                        <span
-                          className={`font-mono tabular-nums text-[11px] font-semibold ${
-                            isActive ? 'text-teal-100' : 'text-teal-700'
+                  {/* Interactive Step Tabs */}
+                  <div
+                    role="tablist"
+                    aria-label="ขั้นตอนการกรอกใบสมัคร"
+                    className="mt-4 flex gap-2 overflow-x-auto no-scrollbar pb-1 sm:mt-5 sm:grid sm:grid-cols-5 sm:overflow-visible sm:pb-0"
+                  >
+                    {FORM_STEPS.map((step) => {
+                      const isActive = currentStep === step.index;
+                      const isCompleted = step.index < currentStep;
+                      return (
+                        <button
+                          key={step.index}
+                          type="button"
+                          role="tab"
+                          aria-selected={isActive}
+                          onClick={() => handleTabJump(step.index)}
+                          className={`btn-lift flex min-h-[44px] shrink-0 items-center gap-2 rounded-xl px-3.5 py-2 text-left text-xs font-medium whitespace-nowrap cursor-pointer sm:shrink sm:px-3 ${
+                            isActive
+                              ? 'bg-teal-800 text-white shadow-sm'
+                              : isCompleted
+                              ? 'border border-teal-700/25 bg-teal-50/85 text-teal-950 hover:bg-white'
+                              : 'border border-teal-900/10 bg-white/70 text-teal-950 hover:bg-white'
                           }`}
                         >
-                          {step.code}
-                        </span>
-                        <span className="sm:truncate">{step.label}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
+                          <span
+                            className={`font-mono tabular-nums text-[11px] font-semibold ${
+                              isActive ? 'text-teal-100' : 'text-teal-700'
+                            }`}
+                          >
+                            {step.code}
+                          </span>
+                          <span className="sm:truncate">{step.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
 
-            {/* Main Form Glass Container */}
-            <div className="glass-panel rounded-3xl p-4 sm:p-8">
-              {stepBannerError && !submittedRecord && (
-                <div
-                  role="alert"
-                  className="no-print mb-6 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-800"
-                >
-                  {stepBannerError}
+                  {/* Smooth Progress Bar */}
+                  <div
+                    aria-hidden="true"
+                    className="mt-3.5 h-1.5 w-full overflow-hidden rounded-full bg-teal-900/10"
+                  >
+                    <div
+                      className="h-full rounded-full bg-gradient-to-r from-teal-600 to-emerald-500 transition-all duration-300 ease-out"
+                      style={{ width: `${((currentStep + 1) / FORM_STEPS.length) * 100}%` }}
+                    />
+                  </div>
                 </div>
               )}
+
+              {/* Main Form Glass Container */}
+              <div className="glass-panel rounded-3xl p-4 sm:p-8">
+                {stepBannerError && !submittedRecord && (
+                  <div
+                    role="alert"
+                    className="no-print animate-error-shake mb-6 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-800"
+                  >
+                    {stepBannerError}
+                  </div>
+                )}
+
+                <div key={currentStep} className="animate-step-enter">
 
               {currentStep === 0 && (
                 <StepPersonalInfo
@@ -424,49 +441,52 @@ export default function App() {
                 />
               )}
 
-              {/* Stepper Footer Navigation */}
-              {!submittedRecord && currentStep < 4 && (
-                <div className="no-print mt-8 border-t border-teal-900/10 pt-5">
-                  <div className="mb-3 text-center text-xs text-teal-900/70 tabular-nums sm:hidden">
-                    ขั้นตอนที่ {currentStep + 1} จาก {FORM_STEPS.length}
-                  </div>
-                  <div className="grid grid-cols-2 gap-2.5 sm:flex sm:items-center sm:justify-between">
-                    <button
-                      type="button"
-                      onClick={handlePrevStep}
-                      disabled={currentStep === 0}
-                      className="inline-flex min-h-[46px] items-center justify-center gap-2 rounded-xl border border-teal-900/15 bg-white/80 px-4 py-2.5 text-sm font-medium text-teal-950 transition-colors hover:bg-white disabled:opacity-40 cursor-pointer"
-                    >
-                      <ArrowLeft className="h-4 w-4" />
-                      <span>ย้อนกลับ</span>
-                    </button>
+                </div>
 
-                    <div className="hidden text-xs text-teal-900/70 tabular-nums sm:block">
+                {/* Stepper Footer Navigation */}
+                {!submittedRecord && currentStep < 4 && (
+                  <div className="no-print mt-8 border-t border-teal-900/10 pt-5">
+                    <div className="mb-3 text-center text-xs text-teal-900/70 tabular-nums sm:hidden">
                       ขั้นตอนที่ {currentStep + 1} จาก {FORM_STEPS.length}
                     </div>
+                    <div className="grid grid-cols-2 gap-2.5 sm:flex sm:items-center sm:justify-between">
+                      <button
+                        type="button"
+                        onClick={handlePrevStep}
+                        disabled={currentStep === 0}
+                        className="btn-lift group inline-flex min-h-[46px] items-center justify-center gap-2 rounded-xl border border-teal-900/15 bg-white/80 px-4 py-2.5 text-sm font-medium text-teal-950 hover:bg-white disabled:opacity-40 cursor-pointer"
+                      >
+                        <ArrowLeft className="h-4 w-4 transition-transform duration-150 group-hover:-translate-x-0.5" />
+                        <span>ย้อนกลับ</span>
+                      </button>
 
-                    <button
-                      type="button"
-                      onClick={handleNextStep}
-                      className="inline-flex min-h-[46px] items-center justify-center gap-2 rounded-xl bg-teal-800 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-teal-900 cursor-pointer"
-                    >
-                      <span>บันทึกและถัดไป</span>
-                      <ArrowRight className="h-4 w-4" />
-                    </button>
+                      <div className="hidden text-xs text-teal-900/70 tabular-nums sm:block">
+                        ขั้นตอนที่ {currentStep + 1} จาก {FORM_STEPS.length}
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={handleNextStep}
+                        className="btn-lift group inline-flex min-h-[46px] items-center justify-center gap-2 rounded-xl bg-teal-800 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-teal-900 cursor-pointer"
+                      >
+                        <span>บันทึกและถัดไป</span>
+                        <ArrowRight className="h-4 w-4 transition-transform duration-150 group-hover:translate-x-0.5" />
+                      </button>
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {activePage === 'track' && <StatusTrackerView initialCode={trackInitialCode} />}
+          {activePage === 'track' && <StatusTrackerView initialCode={trackInitialCode} />}
 
-        {activePage === 'hr' && <HrReviewView />}
+          {activePage === 'hr' && <HrReviewView />}
+        </div>
       </main>
 
       {/* Quiet Footer */}
-      <footer className="no-print mt-10 border-t border-white/60 bg-white/60 backdrop-blur-md">
+      <footer className="no-print relative z-10 mt-10 border-t border-white/60 bg-white/50 backdrop-blur-md">
         <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-3 px-4 py-5 text-xs text-teal-950/75 sm:flex-row sm:px-6">
           <p>
             โรงงานน้ำตาลมิตรภูเวียง · กลุ่มมิตรผล · อำเภอหนองเรือ จังหวัดขอนแก่น

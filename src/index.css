@@ -7,14 +7,19 @@
 }
 
 @layer base {
-  html,
+  html {
+    background-color: #a8dfd0;
+    scroll-behavior: smooth;
+    overflow-x: clip;
+    -webkit-text-size-adjust: 100%;
+  }
+
   body {
     font-family: var(--font-sans);
-    scroll-behavior: smooth;
     color: #0f2926;
-    background-color: #a8dfd0;
-    overflow-x: hidden;
-    -webkit-text-size-adjust: 100%;
+    background-color: transparent;
+    overflow-x: clip;
+    min-height: 100vh;
   }
 
   h1, h2, h3, h4, .font-display {
@@ -24,22 +29,22 @@
 
 /* Glassmorphism surfaces tuned for daylight legibility over nurse_form_bg.jpg */
 .glass-panel {
-  background: rgba(255, 255, 255, 0.80);
-  backdrop-filter: blur(18px) saturate(150%);
-  -webkit-backdrop-filter: blur(18px) saturate(150%);
+  background: rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(14px) saturate(155%);
+  -webkit-backdrop-filter: blur(14px) saturate(155%);
   border: 1px solid rgba(255, 255, 255, 0.78);
-  box-shadow: 0 10px 36px -8px rgba(13, 74, 67, 0.10), inset 0 1px 0 rgba(255, 255, 255, 0.85);
+  box-shadow: 0 12px 36px -8px rgba(13, 74, 67, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.85);
 }
 
 .glass-panel-subtle {
-  background: rgba(255, 255, 255, 0.66);
-  backdrop-filter: blur(12px) saturate(135%);
-  -webkit-backdrop-filter: blur(12px) saturate(135%);
-  border: 1px solid rgba(255, 255, 255, 0.65);
+  background: rgba(255, 255, 255, 0.58);
+  backdrop-filter: blur(10px) saturate(140%);
+  -webkit-backdrop-filter: blur(10px) saturate(140%);
+  border: 1px solid rgba(255, 255, 255, 0.68);
 }
 
 .glass-input {
-  background: rgba(255, 255, 255, 0.90);
+  background: rgba(255, 255, 255, 0.88);
   border: 1px solid rgba(15, 118, 110, 0.18);
   transition: border-color 160ms cubic-bezier(0.16, 1, 0.3, 1),
     box-shadow 160ms cubic-bezier(0.16, 1, 0.3, 1),
@@ -58,6 +63,161 @@
   background: #ffffff;
   border-color: #0d9488;
   box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.16);
+}
+
+@keyframes pageEnter {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes stepEnter {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeScale {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes fadeSlideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes popCheck {
+  0% {
+    opacity: 0;
+    transform: scale(0.7);
+  }
+  65% {
+    opacity: 1;
+    transform: scale(1.08);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes errorShake {
+  0%, 100% {
+    transform: translateX(0);
+  }
+  20% {
+    transform: translateX(-5px);
+  }
+  40% {
+    transform: translateX(5px);
+  }
+  60% {
+    transform: translateX(-3px);
+  }
+  80% {
+    transform: translateX(3px);
+  }
+}
+
+@keyframes bgBreath {
+  0% {
+    transform: scale(1);
+  }
+  100% {
+    transform: scale(1.035);
+  }
+}
+
+.animate-page-enter {
+  animation: pageEnter 380ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.animate-step-enter {
+  animation: stepEnter 320ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.animate-fade-scale {
+  animation: fadeScale 260ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.animate-fade-slide-down {
+  animation: fadeSlideDown 220ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.animate-pop-check {
+  animation: popCheck 460ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.animate-error-shake {
+  animation: errorShake 340ms cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+}
+
+.animate-bg-breath {
+  animation: bgBreath 26s ease-in-out infinite alternate;
+  will-change: transform;
+}
+
+.stagger-1 {
+  animation-delay: 50ms;
+}
+.stagger-2 {
+  animation-delay: 110ms;
+}
+.stagger-3 {
+  animation-delay: 170ms;
+}
+.stagger-4 {
+  animation-delay: 230ms;
+}
+
+.interactive-card {
+  transition: transform 200ms cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 200ms cubic-bezier(0.16, 1, 0.3, 1),
+    border-color 200ms cubic-bezier(0.16, 1, 0.3, 1),
+    background-color 200ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.interactive-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 26px -10px rgba(13, 74, 67, 0.16);
+}
+
+.btn-lift {
+  transition: transform 170ms cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 170ms cubic-bezier(0.16, 1, 0.3, 1),
+    background-color 170ms cubic-bezier(0.16, 1, 0.3, 1),
+    border-color 170ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.btn-lift:hover:not(:disabled) {
+  transform: translateY(-1.5px);
+}
+
+.btn-lift:active:not(:disabled) {
+  transform: scale(0.98);
 }
 
 .tabular-nums {
@@ -88,6 +248,10 @@
   body {
     background: #ffffff !important;
     color: #000000 !important;
+  }
+  * {
+    animation: none !important;
+    transition: none !important;
   }
   .no-print {
     display: none !important;

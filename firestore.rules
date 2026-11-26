@@ -255,10 +255,10 @@ service cloud.firestore {
           'id', 'applicationId', 'slotKey', 'fileName', 'mimeType', 'sizeBytes', 'dataUrl', 'createdAt'
         ]) &&
         f.keys().hasOnly([
-          'id', 'applicationId', 'slotKey', 'fileName', 'mimeType', 'sizeBytes', 'dataUrl', 'createdAt'
+          'id', 'applicationId', 'slotKey', 'fileName', 'mimeType', 'sizeBytes', 'dataUrl', 'chunkIndex', 'chunkCount', 'createdAt'
         ]) &&
         isValidId(f.id) &&
-        f.id.size() <= 100 &&
+        f.id.size() <= 120 &&
         isValidId(f.applicationId) &&
         f.applicationId.size() >= 5 &&
         f.applicationId.size() <= 64 &&
@@ -266,7 +266,9 @@ service cloud.firestore {
         isBoundedString(f.fileName, 1, 255) &&
         isBoundedString(f.mimeType, 1, 100) &&
         f.sizeBytes is number && f.sizeBytes >= 0 && f.sizeBytes <= 15000000 &&
-        isBoundedString(f.dataUrl, 10, 900000) &&
+        isBoundedString(f.dataUrl, 1, 900000) &&
+        (!('chunkIndex' in f) || (f.chunkIndex is number && f.chunkIndex >= 0 && f.chunkIndex <= 50)) &&
+        (!('chunkCount' in f) || (f.chunkCount is number && f.chunkCount >= 1 && f.chunkCount <= 50)) &&
         f.createdAt is timestamp;
     }
 
@@ -316,7 +318,10 @@ service cloud.firestore {
           incoming().id == docId &&
           incoming().applicationId == applicationId &&
           incoming().createdAt == request.time &&
-          existsAfter(/databases/$(database)/documents/nurse_register/$(applicationId));
+          (
+            exists(/databases/$(database)/documents/nurse_register/$(applicationId)) ||
+            existsAfter(/databases/$(database)/documents/nurse_register/$(applicationId))
+          );
         allow update: if false;
         allow delete: if isValidId(applicationId) &&
           isValidId(docId) &&

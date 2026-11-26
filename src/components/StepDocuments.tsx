@@ -1,11 +1,12 @@
-import { useState, type ChangeEvent, type DragEvent } from 'react';
-import { Eye, FileText, Trash2, UploadCloud, X } from 'lucide-react';
+import { useEffect, useState, type ChangeEvent, type DragEvent } from 'react';
+import { Eye, FileText, Loader2, Trash2, UploadCloud, X } from 'lucide-react';
 import type {
   DocumentSlotKey,
   UploadedDocumentItem,
   ValidationErrors,
 } from '../types/application.ts';
 import { DOCUMENT_SLOTS, formatBytes } from '../utils/applicationHelpers.ts';
+import { renderPdfBlobToImageUrls } from '../utils/pdfRenderHelper.ts';
 
 interface StepDocumentsProps {
   documents: UploadedDocumentItem[];
@@ -27,6 +28,44 @@ export function StepDocuments({
   const [uploadAlert, setUploadAlert] = useState<string | null>(null);
   const [dragOverSlot, setDragOverSlot] = useState<DocumentSlotKey | null>(null);
   const [previewDoc, setPreviewDoc] = useState<UploadedDocumentItem | null>(null);
+  const [previewPdfPages, setPreviewPdfPages] = useState<string[]>([]);
+  const [previewPdfLoading, setPreviewPdfLoading] = useState(false);
+
+  useEffect(() => {
+    if (!previewDoc || previewDoc.mimeType.startsWith('image/')) {
+      setPreviewPdfPages([]);
+      setPreviewPdfLoading(false);
+      return;
+    }
+    const src = previewDoc.dataUrl || previewDoc.fileUrl;
+    if (!src) {
+      setPreviewPdfPages([]);
+      setPreviewPdfLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setPreviewPdfLoading(true);
+    setPreviewPdfPages([]);
+    void renderPdfBlobToImageUrls(src)
+      .then((pages) => {
+        if (!cancelled) {
+          setPreviewPdfPages(pages);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setPreviewPdfPages([]);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setPreviewPdfLoading(false);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [previewDoc]);
 
   const readFileAsDataUrl = (file: File): Promise<string> =>
     new Promise((resolve, reject) => {
@@ -392,14 +431,36 @@ export function StepDocuments({
                 <X className="h-5 w-5" />
               </button>
             </div>
-            <div className="flex-1 overflow-auto bg-slate-100 p-4 flex items-center justify-center">
+            <div className="flex flex-1 flex-col items-center overflow-auto bg-slate-100 p-4">
               {previewDoc.mimeType.startsWith('image/') ? (
                 <img
                   src={previewDoc.dataUrl || previewDoc.fileUrl}
                   alt={previewDoc.fileName}
                   referrerPolicy="no-referrer"
-                  className="max-h-[72vh] w-auto rounded-lg object-contain shadow"
+                  className="my-auto max-h-[72vh] w-auto rounded-lg object-contain shadow"
                 />
+              ) : previewPdfLoading ? (
+                <div className="my-auto flex flex-col items-center gap-2 py-12 text-sm text-teal-900/75">
+                  <Loader2 className="h-6 w-6 animate-spin text-teal-700" />
+                  <span>กำลังเปิดไฟล์ PDF...</span>
+                </div>
+              ) : previewPdfPages.length > 0 ? (
+                <div className="flex w-full flex-col items-center gap-4">
+                  {previewPdfPages.map((pageUrl, pageIdx) => (
+                    <div key={pageIdx} className="w-full max-w-2xl">
+                      {previewPdfPages.length > 1 && (
+                        <p className="mb-1 text-center text-xs font-medium text-teal-900/70">
+                          หน้า {pageIdx + 1} / {previewPdfPages.length}
+                        </p>
+                      )}
+                      <img
+                        src={pageUrl}
+                        alt={`${previewDoc.fileName} หน้า ${pageIdx + 1}`}
+                        className="mx-auto w-full rounded-lg border border-slate-200 bg-white shadow"
+                      />
+                    </div>
+                  ))}
+                </div>
               ) : (
                 <iframe
                   src={previewDoc.dataUrl || previewDoc.fileUrl}

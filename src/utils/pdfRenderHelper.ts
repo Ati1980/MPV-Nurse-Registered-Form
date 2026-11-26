@@ -1,6 +1,6 @@
 export async function renderPdfBlobToImageUrls(
   blobUrl: string,
-  maxPages = 2
+  maxPages = 50
 ): Promise<string[]> {
   const response = await fetch(blobUrl);
   const arrayBuffer = await response.arrayBuffer();

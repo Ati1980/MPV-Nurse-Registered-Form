@@ -20,6 +20,11 @@ import {
   DRAFT_STORAGE_KEY,
   validateAllSteps,
 } from './utils/applicationHelpers.ts';
+import {
+  clearDraftDocumentsFromIdb,
+  loadDraftDocumentsFromIdb,
+  saveDraftDocumentsToIdb,
+} from './utils/draftStorage.ts';
 
 export default function App() {
   const [activePage, setActivePage] = useState<ActivePage>('overview');
@@ -49,6 +54,9 @@ export default function App() {
         ) {
           merged.workExperiences = [merged.workExperiences[0]];
         }
+        if (Array.isArray(merged.documents)) {
+          merged.documents = merged.documents.filter((d) => Boolean(d.dataUrl));
+        }
         return merged;
       }
     } catch {
@@ -75,13 +83,40 @@ export default function App() {
   const [trackInitialCode, setTrackInitialCode] = useState('');
   const [hrUnlocked, setHrUnlocked] = useState(false);
   const [hrPinModalOpen, setHrPinModalOpen] = useState(false);
+  const [idbHydrated, setIdbHydrated] = useState(false);
+
+  // Hydrate full draft documents (including large PDFs/images) from IndexedDB on mount
+  useEffect(() => {
+    let cancelled = false;
+    void loadDraftDocumentsFromIdb().then((idbDocs) => {
+      if (cancelled) return;
+      if (idbDocs && idbDocs.length > 0) {
+        const validDocs = idbDocs.filter((d) => Boolean(d.dataUrl));
+        if (validDocs.length > 0) {
+          setFormData((prev) => {
+            const byId = new Map(prev.documents.map((d) => [d.id, d]));
+            for (const docItem of validDocs) {
+              if (!byId.has(docItem.id) || !byId.get(docItem.id)?.dataUrl) {
+                byId.set(docItem.id, docItem);
+              }
+            }
+            return { ...prev, documents: Array.from(byId.values()) };
+          });
+        }
+      }
+      setIdbHydrated(true);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
-    if (submittedRecord) return;
+    if (submittedRecord || !idbHydrated) return;
     try {
       const liteDraft: ApplicationFormData = {
         ...formData,
-        // Keep small thumbnails (<150KB) in draft, skip oversized base64 blobs to prevent quota errors
+        // Keep small thumbnails (<150KB) in localStorage, full files live in IndexedDB
         documents: formData.documents.map((doc) =>
           doc.dataUrl && doc.dataUrl.length > 150_000
             ? { ...doc, dataUrl: undefined }
@@ -93,7 +128,8 @@ export default function App() {
     } catch {
       // Gracefully ignore localStorage quota overflow
     }
-  }, [formData, submittedRecord]);
+    void saveDraftDocumentsToIdb(formData.documents);
+  }, [formData, submittedRecord, idbHydrated]);
 
   const scrollToTop = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -118,6 +154,7 @@ export default function App() {
     } catch {
       // Ignore storage error
     }
+    void clearDraftDocumentsFromIdb();
   };
 
   const handleSubmitApplication = async () => {
@@ -145,6 +182,7 @@ export default function App() {
       } catch {
         // Ignore storage error
       }
+      void clearDraftDocumentsFromIdb();
       scrollToTop();
     } catch (err) {
       let friendly = 'ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์เพื่อส่งใบสมัครได้';

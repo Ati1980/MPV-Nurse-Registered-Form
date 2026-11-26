@@ -34,6 +34,7 @@ import {
   formatThaiDateTime,
   getApplicationStatusStyle,
 } from '../utils/applicationHelpers.ts';
+import { renderPdfBlobToImageUrls } from '../utils/pdfRenderHelper.ts';
 import { ContractPrintModal } from './ContractPrintModal.tsx';
 import { PrintableApplicationSheet } from './PrintableApplicationSheet.tsx';
 
@@ -65,6 +66,7 @@ export function HrReviewView({ onLogout }: HrReviewViewProps) {
     doc: UploadedDocumentItem;
     loading: boolean;
     objectUrl: string | null;
+    pdfPageUrls: string[];
     mimeType: string;
     error: string | null;
   } | null>(null);
@@ -218,6 +220,7 @@ export function HrReviewView({ onLogout }: HrReviewViewProps) {
       doc: docItem,
       loading: true,
       objectUrl: null,
+      pdfPageUrls: [],
       mimeType: docItem.mimeType,
       error: null,
     });
@@ -229,6 +232,7 @@ export function HrReviewView({ onLogout }: HrReviewViewProps) {
           doc: docItem,
           loading: false,
           objectUrl: null,
+          pdfPageUrls: [],
           mimeType: docItem.mimeType,
           error:
             'ไม่พบไฟล์เอกสารต้นฉบับในระบบ (อาจเป็นใบสมัครที่ส่งก่อนอัปเดตการจัดเก็บไฟล์บนคลาวด์ หรือไฟล์ถูกล้างจากเซิร์ฟเวอร์ชั่วคราว)',
@@ -236,10 +240,21 @@ export function HrReviewView({ onLogout }: HrReviewViewProps) {
         return;
       }
       activeObjectUrlRef.current = resolved.objectUrl;
+      const isPdf =
+        resolved.mimeType.includes('pdf') || docItem.fileName.toLowerCase().endsWith('.pdf');
+      let pdfPageUrls: string[] = [];
+      if (isPdf) {
+        try {
+          pdfPageUrls = await renderPdfBlobToImageUrls(resolved.objectUrl);
+        } catch {
+          pdfPageUrls = [];
+        }
+      }
       setPreviewState({
         doc: docItem,
         loading: false,
         objectUrl: resolved.objectUrl,
+        pdfPageUrls,
         mimeType: resolved.mimeType,
         error: null,
       });
@@ -248,6 +263,7 @@ export function HrReviewView({ onLogout }: HrReviewViewProps) {
         doc: docItem,
         loading: false,
         objectUrl: null,
+        pdfPageUrls: [],
         mimeType: docItem.mimeType,
         error: 'ไม่สามารถโหลดไฟล์เอกสารได้ กรุณาลองใหม่อีกครั้ง',
       });
@@ -699,22 +715,39 @@ export function HrReviewView({ onLogout }: HrReviewViewProps) {
                 </div>
               </div>
 
-              <div className="flex min-h-[340px] flex-1 items-center justify-center overflow-auto bg-slate-100 p-4">
+              <div className="flex min-h-[340px] flex-1 flex-col items-center overflow-auto bg-slate-100 p-4">
                 {previewState.loading ? (
-                  <div className="flex flex-col items-center gap-2 text-sm text-teal-900/75">
+                  <div className="my-auto flex flex-col items-center gap-2 text-sm text-teal-900/75">
                     <Loader2 className="h-6 w-6 animate-spin text-teal-700" />
                     <span>กำลังเปิดไฟล์เอกสาร...</span>
                   </div>
                 ) : previewState.error ? (
-                  <div className="max-w-md rounded-2xl border border-amber-200 bg-amber-50 p-5 text-center text-sm text-amber-900">
+                  <div className="my-auto max-w-md rounded-2xl border border-amber-200 bg-amber-50 p-5 text-center text-sm text-amber-900">
                     {previewState.error}
                   </div>
                 ) : previewState.objectUrl && previewState.mimeType.startsWith('image/') ? (
                   <img
                     src={previewState.objectUrl}
                     alt={previewState.doc.fileName}
-                    className="max-h-[74vh] w-auto rounded-xl object-contain shadow"
+                    className="my-auto max-h-[74vh] w-auto rounded-xl object-contain shadow"
                   />
+                ) : previewState.pdfPageUrls.length > 0 ? (
+                  <div className="flex w-full flex-col items-center gap-4">
+                    {previewState.pdfPageUrls.map((pageUrl, pageIdx) => (
+                      <div key={pageIdx} className="w-full max-w-3xl">
+                        {previewState.pdfPageUrls.length > 1 && (
+                          <p className="mb-1 text-center text-xs font-medium text-teal-900/70">
+                            หน้า {pageIdx + 1} / {previewState.pdfPageUrls.length}
+                          </p>
+                        )}
+                        <img
+                          src={pageUrl}
+                          alt={`${previewState.doc.fileName} หน้า ${pageIdx + 1}`}
+                          className="mx-auto w-full rounded-xl border border-slate-200 bg-white shadow"
+                        />
+                      </div>
+                    ))}
+                  </div>
                 ) : previewState.objectUrl ? (
                   <iframe
                     src={previewState.objectUrl}

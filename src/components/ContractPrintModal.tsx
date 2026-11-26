@@ -526,8 +526,8 @@ export function ContractPrintModal({ open, applicant, onClose }: ContractPrintMo
     const loadAll = async () => {
       const results = await Promise.all(
         CONTRACT_ATTACHMENT_SLOTS.map(async (slot): Promise<ResolvedContractAttachment> => {
-          const docItem = applicant.documents.find((d) => d.slotKey === slot.slotKey);
-          if (!docItem) {
+          const slotDocs = applicant.documents.filter((d) => d.slotKey === slot.slotKey);
+          if (slotDocs.length === 0) {
             return {
               slotKey: slot.slotKey,
               label: slot.label,
@@ -537,37 +537,15 @@ export function ContractPrintModal({ open, applicant, onClose }: ContractPrintMo
           }
 
           try {
-            const resolved = await resolveApplicationFileApi(applicant.applicationId, docItem);
-            if (!resolved) {
-              return {
-                slotKey: slot.slotKey,
-                label: slot.label,
-                fileName: docItem.fileName,
-                status: 'unavailable',
-                imageUrls: [],
-              };
-            }
+            const collectedImageUrls: string[] = [];
+            for (const docItem of slotDocs) {
+              const resolved = await resolveApplicationFileApi(applicant.applicationId, docItem);
+              if (!resolved) {
+                continue;
+              }
 
-            if (cancelled) {
-              URL.revokeObjectURL(resolved.objectUrl);
-              return {
-                slotKey: slot.slotKey,
-                label: slot.label,
-                fileName: docItem.fileName,
-                status: 'unavailable',
-                imageUrls: [],
-              };
-            }
-
-            objectUrlsRef.current.push(resolved.objectUrl);
-
-            const isPdf =
-              resolved.mimeType.includes('pdf') ||
-              docItem.fileName.toLowerCase().endsWith('.pdf');
-
-            if (isPdf) {
-              const pdfPageImages = await renderPdfBlobToImageUrls(resolved.objectUrl, 2);
-              if (pdfPageImages.length === 0) {
+              if (cancelled) {
+                URL.revokeObjectURL(resolved.objectUrl);
                 return {
                   slotKey: slot.slotKey,
                   label: slot.label,
@@ -576,27 +554,43 @@ export function ContractPrintModal({ open, applicant, onClose }: ContractPrintMo
                   imageUrls: [],
                 };
               }
+
+              objectUrlsRef.current.push(resolved.objectUrl);
+
+              const isPdf =
+                resolved.mimeType.includes('pdf') ||
+                docItem.fileName.toLowerCase().endsWith('.pdf');
+
+              if (isPdf) {
+                const pdfPageImages = await renderPdfBlobToImageUrls(resolved.objectUrl);
+                collectedImageUrls.push(...pdfPageImages);
+              } else {
+                collectedImageUrls.push(resolved.objectUrl);
+              }
+            }
+
+            if (collectedImageUrls.length === 0) {
               return {
                 slotKey: slot.slotKey,
                 label: slot.label,
-                fileName: docItem.fileName,
-                status: 'ready',
-                imageUrls: pdfPageImages,
+                fileName: slotDocs.map((d) => d.fileName).join(', '),
+                status: 'unavailable',
+                imageUrls: [],
               };
             }
 
             return {
               slotKey: slot.slotKey,
               label: slot.label,
-              fileName: docItem.fileName,
+              fileName: slotDocs.map((d) => d.fileName).join(', '),
               status: 'ready',
-              imageUrls: [resolved.objectUrl],
+              imageUrls: collectedImageUrls,
             };
           } catch {
             return {
               slotKey: slot.slotKey,
               label: slot.label,
-              fileName: docItem.fileName,
+              fileName: slotDocs.map((d) => d.fileName).join(', '),
               status: 'unavailable',
               imageUrls: [],
             };
@@ -737,7 +731,7 @@ export function ContractPrintModal({ open, applicant, onClose }: ContractPrintMo
           {loadingAttachments && (
             <span className="inline-flex items-center gap-1.5 rounded-xl border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-900">
               <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              <span>กำลังเตรียมไฟล์แนบ 4 แผ่น...</span>
+              <span>กำลังเตรียมไฟล์เอกสารแนบ...</span>
             </span>
           )}
 
@@ -1170,7 +1164,7 @@ export function ContractPrintModal({ open, applicant, onClose }: ContractPrintMo
                   onChange={(e) => setIncludeAttachments(e.target.checked)}
                   className="h-4 w-4 rounded border-teal-700 text-teal-800"
                 />
-                <span>ต่อท้ายเอกสารแนบ 4 แผ่น (A4 ต่อแผ่น)</span>
+                <span>ต่อท้ายเอกสารแนบ 4 ชุด (A4 ต่อแผ่น · PDF หลายหน้าแสดงเรียงต่อกัน)</span>
               </label>
             </div>
           </aside>
@@ -1187,52 +1181,70 @@ export function ContractPrintModal({ open, applicant, onClose }: ContractPrintMo
               )}
 
               {includeAttachments &&
-                attachments.map((item, idx) => (
-                  <section
-                    key={item.slotKey}
-                    className="contract-page-break contract-attachment-page mt-14 border-t-2 border-dashed border-slate-300 pt-10 print:mt-0 print:border-none print:pt-0"
-                  >
-                    <div className="font-contract flex flex-wrap items-baseline justify-between gap-2 border-b border-slate-300 pb-1.5 text-black">
-                      <h3 className="text-[20px] font-bold">
-                        เอกสารแนบแผ่นที่ {idx + 1} : {item.label}
-                      </h3>
-                      <span className="text-[16px]">
-                        ผู้รับจ้าง: {fields.contractorName} ({applicant.applicationId})
-                      </span>
-                    </div>
-
-                    <div className="mt-4 flex h-[230mm] flex-col items-center justify-center gap-3 overflow-hidden rounded-xl border border-slate-200 bg-slate-50/50 p-3 print:mt-3 print:h-[230mm] print:rounded-none print:border-none print:bg-transparent print:p-0">
-                      {item.status === 'loading' ? (
-                        <div className="no-print flex flex-col items-center gap-2 text-sm text-teal-900/70">
-                          <Loader2 className="h-6 w-6 animate-spin text-teal-700" />
-                          <span>กำลังโหลดเอกสาร {item.label}...</span>
+                attachments.flatMap((item, idx) => {
+                  if (item.status === 'ready' && item.imageUrls.length > 0) {
+                    return item.imageUrls.map((imgUrl, pageIdx) => (
+                      <section
+                        key={`${item.slotKey}-p${pageIdx}`}
+                        className="contract-page-break contract-attachment-page mt-14 border-t-2 border-dashed border-slate-300 pt-10 print:mt-0 print:border-none print:pt-0"
+                      >
+                        <div className="font-contract flex flex-wrap items-baseline justify-between gap-2 border-b border-slate-300 pb-1.5 text-black">
+                          <h3 className="text-[20px] font-bold">
+                            เอกสารแนบแผ่นที่ {idx + 1} : {item.label}
+                            {item.imageUrls.length > 1
+                              ? ` (หน้า ${pageIdx + 1}/${item.imageUrls.length})`
+                              : ''}
+                          </h3>
+                          <span className="text-[16px]">
+                            ผู้รับจ้าง: {fields.contractorName} ({applicant.applicationId})
+                          </span>
                         </div>
-                      ) : item.status === 'ready' && item.imageUrls.length > 0 ? (
-                        item.imageUrls.map((imgUrl, pageIdx) => (
+
+                        <div className="mt-4 flex h-[230mm] flex-col items-center justify-center overflow-hidden rounded-xl border border-slate-200 bg-slate-50/50 p-3 print:mt-3 print:h-[230mm] print:rounded-none print:border-none print:bg-transparent print:p-0">
                           <img
-                            key={`${item.slotKey}-p${pageIdx}`}
                             src={imgUrl}
                             alt={`${item.label} หน้า ${pageIdx + 1}`}
-                            className={
-                              item.imageUrls.length === 1
-                                ? 'max-h-full max-w-full object-contain'
-                                : 'max-h-[114mm] w-auto max-w-full object-contain'
-                            }
+                            className="max-h-full max-w-full object-contain"
                           />
-                        ))
-                      ) : (
-                        <div className="font-contract max-w-md rounded-xl border border-dashed border-slate-300 bg-white px-6 py-8 text-center text-[18px] text-slate-700">
-                          <p className="font-bold">{item.label}</p>
-                          <p className="mt-1 text-[16px] text-slate-500">
-                            {item.status === 'missing'
-                              ? 'ผู้สมัครยังไม่ได้แนบเอกสารรายการนี้'
-                              : `ไม่พบไฟล์เอกสารต้นฉบับในระบบ${item.fileName ? ` (${item.fileName})` : ''}`}
-                          </p>
                         </div>
-                      )}
-                    </div>
-                  </section>
-                ))}
+                      </section>
+                    ));
+                  }
+
+                  return (
+                    <section
+                      key={item.slotKey}
+                      className="contract-page-break contract-attachment-page mt-14 border-t-2 border-dashed border-slate-300 pt-10 print:mt-0 print:border-none print:pt-0"
+                    >
+                      <div className="font-contract flex flex-wrap items-baseline justify-between gap-2 border-b border-slate-300 pb-1.5 text-black">
+                        <h3 className="text-[20px] font-bold">
+                          เอกสารแนบแผ่นที่ {idx + 1} : {item.label}
+                        </h3>
+                        <span className="text-[16px]">
+                          ผู้รับจ้าง: {fields.contractorName} ({applicant.applicationId})
+                        </span>
+                      </div>
+
+                      <div className="mt-4 flex h-[230mm] flex-col items-center justify-center gap-3 overflow-hidden rounded-xl border border-slate-200 bg-slate-50/50 p-3 print:mt-3 print:h-[230mm] print:rounded-none print:border-none print:bg-transparent print:p-0">
+                        {item.status === 'loading' ? (
+                          <div className="no-print flex flex-col items-center gap-2 text-sm text-teal-900/70">
+                            <Loader2 className="h-6 w-6 animate-spin text-teal-700" />
+                            <span>กำลังโหลดเอกสาร {item.label}...</span>
+                          </div>
+                        ) : (
+                          <div className="font-contract max-w-md rounded-xl border border-dashed border-slate-300 bg-white px-6 py-8 text-center text-[18px] text-slate-700">
+                            <p className="font-bold">{item.label}</p>
+                            <p className="mt-1 text-[16px] text-slate-500">
+                              {item.status === 'missing'
+                                ? 'ผู้สมัครยังไม่ได้แนบเอกสารรายการนี้'
+                                : `ไม่พบไฟล์เอกสารต้นฉบับในระบบ${item.fileName ? ` (${item.fileName})` : ''}`}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    </section>
+                  );
+                })}
             </div>
           </div>
         </div>

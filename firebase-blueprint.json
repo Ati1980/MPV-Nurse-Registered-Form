@@ -204,9 +204,17 @@
         },
         "dataUrl": {
           "type": "string",
-          "description": "Bounded base64 data URL payload.",
-          "minLength": 10,
+          "description": "Bounded base64 data URL payload or chunk slice.",
+          "minLength": 1,
           "maxLength": 900000
+        },
+        "chunkIndex": {
+          "type": "number",
+          "description": "Zero-based chunk index for attachments exceeding single-document size limits."
+        },
+        "chunkCount": {
+          "type": "number",
+          "description": "Total chunk count for chunked attachments."
         },
         "createdAt": {
           "type": "string",

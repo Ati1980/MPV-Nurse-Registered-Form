@@ -305,13 +305,13 @@ export async function submitApplicationApi(
     const statusPath = `${NURSE_REGISTER_STATUS_COLLECTION}/${firestoreData.applicationId}`;
 
     try {
-      const batch = writeBatch(db);
-      batch.set(doc(db, NURSE_REGISTER_COLLECTION, firestoreData.applicationId), {
+      const mainBatch = writeBatch(db);
+      mainBatch.set(doc(db, NURSE_REGISTER_COLLECTION, firestoreData.applicationId), {
         ...firestoreData,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       });
-      batch.set(doc(db, NURSE_REGISTER_STATUS_COLLECTION, firestoreData.applicationId), {
+      mainBatch.set(doc(db, NURSE_REGISTER_STATUS_COLLECTION, firestoreData.applicationId), {
         applicationId: firestoreData.applicationId,
         status: firestoreData.status,
         submittedAt: firestoreData.submittedAt,
@@ -319,29 +319,82 @@ export async function submitApplicationApi(
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       });
+      await mainBatch.commit();
+
+      const CHUNK_SIZE = 700_000;
+      const MAX_BATCH_CHARS = 3_200_000;
+      const fileWrites: Array<{
+        docId: string;
+        payload: {
+          id: string;
+          applicationId: string;
+          slotKey: string;
+          fileName: string;
+          mimeType: string;
+          sizeBytes: number;
+          dataUrl: string;
+          chunkIndex: number;
+          chunkCount: number;
+          createdAt: ReturnType<typeof serverTimestamp>;
+        };
+      }> = [];
 
       for (const cleanDoc of firestoreData.documents) {
         const safeDocId = cleanDoc.id.replace(/[^a-zA-Z0-9_-]/g, '-');
         const originalDoc = sourceDocsById.get(cleanDoc.id);
         const dataUrl = originalDoc?.dataUrl;
-        if (dataUrl && dataUrl.startsWith('data:') && dataUrl.length <= 880_000 && safeDocId) {
-          batch.set(
-            doc(db, NURSE_REGISTER_COLLECTION, firestoreData.applicationId, 'files', safeDocId),
-            {
-              id: safeDocId,
-              applicationId: firestoreData.applicationId,
-              slotKey: cleanDoc.slotKey,
-              fileName: cleanDoc.fileName,
-              mimeType: cleanDoc.mimeType,
-              sizeBytes: cleanDoc.sizeBytes,
-              dataUrl,
-              createdAt: serverTimestamp(),
-            }
-          );
+        if (dataUrl && dataUrl.startsWith('data:') && safeDocId) {
+          const chunkCount = Math.max(1, Math.ceil(dataUrl.length / CHUNK_SIZE));
+          for (let chunkIndex = 0; chunkIndex < chunkCount; chunkIndex += 1) {
+            const slice = dataUrl.slice(chunkIndex * CHUNK_SIZE, (chunkIndex + 1) * CHUNK_SIZE);
+            const chunkDocId = chunkIndex === 0 ? safeDocId : `${safeDocId}__c${chunkIndex}`;
+            fileWrites.push({
+              docId: chunkDocId,
+              payload: {
+                id: chunkDocId,
+                applicationId: firestoreData.applicationId,
+                slotKey: cleanDoc.slotKey,
+                fileName: cleanDoc.fileName,
+                mimeType: cleanDoc.mimeType,
+                sizeBytes: cleanDoc.sizeBytes,
+                dataUrl: slice,
+                chunkIndex,
+                chunkCount,
+                createdAt: serverTimestamp(),
+              },
+            });
+          }
         }
       }
 
-      await batch.commit();
+      if (fileWrites.length > 0) {
+        let currentBatch = writeBatch(db);
+        let currentBatchChars = 0;
+        let currentBatchCount = 0;
+
+        for (const item of fileWrites) {
+          const itemChars = item.payload.dataUrl.length;
+          if (
+            currentBatchCount > 0 &&
+            (currentBatchChars + itemChars > MAX_BATCH_CHARS || currentBatchCount >= 10)
+          ) {
+            await currentBatch.commit();
+            currentBatch = writeBatch(db);
+            currentBatchChars = 0;
+            currentBatchCount = 0;
+          }
+          currentBatch.set(
+            doc(db, NURSE_REGISTER_COLLECTION, firestoreData.applicationId, 'files', item.docId),
+            item.payload
+          );
+          currentBatchChars += itemChars;
+          currentBatchCount += 1;
+        }
+
+        if (currentBatchCount > 0) {
+          await currentBatch.commit();
+        }
+      }
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, `${registerPath} & ${statusPath}`);
     }
@@ -643,23 +696,64 @@ export async function resolveApplicationFileApi(
     }
   }
 
-  // 3. Firestore `/nurse_register/{applicationId}/files/{docId}` subcollection
+  // 3. Firestore `/nurse_register/{applicationId}/files/{docId}` subcollection (supports chunked files)
   if (db && auth?.currentUser && auth.currentUser.emailVerified) {
+    const firestoreDb = db;
     const safeDocId = fileDoc.id.replace(/[^a-zA-Z0-9_-]/g, '-');
     const filePath = `${NURSE_REGISTER_COLLECTION}/${applicationId}/files/${safeDocId}`;
     try {
       const snap = await getDoc(
-        doc(db, NURSE_REGISTER_COLLECTION, applicationId, 'files', safeDocId)
+        doc(firestoreDb, NURSE_REGISTER_COLLECTION, applicationId, 'files', safeDocId)
       );
       if (snap.exists()) {
-        const stored = snap.data() as { dataUrl?: string; mimeType?: string };
+        const stored = snap.data() as {
+          dataUrl?: string;
+          mimeType?: string;
+          chunkCount?: number;
+        };
         if (stored.dataUrl) {
-          const blob = dataUrlToBlob(stored.dataUrl);
-          if (blob) {
-            return {
-              objectUrl: URL.createObjectURL(blob),
-              mimeType: stored.mimeType || blob.type || fileDoc.mimeType,
-            };
+          let fullDataUrl = stored.dataUrl;
+          const totalChunks = typeof stored.chunkCount === 'number' ? stored.chunkCount : 1;
+          if (totalChunks > 1) {
+            const chunkSnaps = await Promise.all(
+              Array.from({ length: totalChunks - 1 }, (_, idx) =>
+                getDoc(
+                  doc(
+                    firestoreDb,
+                    NURSE_REGISTER_COLLECTION,
+                    applicationId,
+                    'files',
+                    `${safeDocId}__c${idx + 1}`
+                  )
+                )
+              )
+            );
+            let missingChunk = false;
+            for (const cSnap of chunkSnaps) {
+              if (!cSnap.exists()) {
+                missingChunk = true;
+                break;
+              }
+              const cData = cSnap.data() as { dataUrl?: string };
+              if (!cData.dataUrl) {
+                missingChunk = true;
+                break;
+              }
+              fullDataUrl += cData.dataUrl;
+            }
+            if (missingChunk) {
+              fullDataUrl = '';
+            }
+          }
+
+          if (fullDataUrl) {
+            const blob = dataUrlToBlob(fullDataUrl);
+            if (blob) {
+              return {
+                objectUrl: URL.createObjectURL(blob),
+                mimeType: stored.mimeType || blob.type || fileDoc.mimeType,
+              };
+            }
           }
         }
       }

@@ -471,26 +471,31 @@ export async function exportContractToWordDocx(params: {
   if (includeAttachments) {
     for (let idx = 0; idx < attachments.length; idx++) {
       const item = attachments[idx];
-      children.push(
-        new Paragraph({
-          pageBreakBefore: true,
-          spacing: { after: 120 },
-          border: {
-            bottom: { style: BorderStyle.SINGLE, size: 6, color: 'CBD5E1' },
-          },
-          children: [
-            plainRun(`เอกสารแนบแผ่นที่ ${idx + 1} : ${item.label}`, { bold: true, sizePt: 16 }),
-            plainRun(`   (ผู้รับจ้าง: ${fields.contractorName} · ${applicationId})`, {
-              sizePt: 14,
-            }),
-          ],
-        })
-      );
-
       if (item.status === 'ready' && item.imageUrls.length > 0) {
-        const maxH = item.imageUrls.length === 1 ? 840 : 410;
-        for (const url of item.imageUrls) {
-          const loaded = await loadImageAsPngBytes(url, 620, maxH);
+        for (let pageIdx = 0; pageIdx < item.imageUrls.length; pageIdx++) {
+          const url = item.imageUrls[pageIdx];
+          const pageSuffix =
+            item.imageUrls.length > 1 ? ` (หน้า ${pageIdx + 1}/${item.imageUrls.length})` : '';
+          children.push(
+            new Paragraph({
+              pageBreakBefore: true,
+              spacing: { after: 120 },
+              border: {
+                bottom: { style: BorderStyle.SINGLE, size: 6, color: 'CBD5E1' },
+              },
+              children: [
+                plainRun(`เอกสารแนบแผ่นที่ ${idx + 1} : ${item.label}${pageSuffix}`, {
+                  bold: true,
+                  sizePt: 16,
+                }),
+                plainRun(`   (ผู้รับจ้าง: ${fields.contractorName} · ${applicationId})`, {
+                  sizePt: 14,
+                }),
+              ],
+            })
+          );
+
+          const loaded = await loadImageAsPngBytes(url, 620, 840);
           if (loaded) {
             children.push(
               new Paragraph({
@@ -512,6 +517,19 @@ export async function exportContractToWordDocx(params: {
         }
       } else {
         children.push(
+          new Paragraph({
+            pageBreakBefore: true,
+            spacing: { after: 120 },
+            border: {
+              bottom: { style: BorderStyle.SINGLE, size: 6, color: 'CBD5E1' },
+            },
+            children: [
+              plainRun(`เอกสารแนบแผ่นที่ ${idx + 1} : ${item.label}`, { bold: true, sizePt: 16 }),
+              plainRun(`   (ผู้รับจ้าง: ${fields.contractorName} · ${applicationId})`, {
+                sizePt: 14,
+              }),
+            ],
+          }),
           new Paragraph({
             alignment: AlignmentType.CENTER,
             spacing: { before: 400 },

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { ArrowLeft, ArrowRight, RotateCcw } from 'lucide-react';
 import { HeroOverview } from './components/HeroOverview.tsx';
+import { HrPinModal } from './components/HrPinModal.tsx';
 import { HrReviewView } from './components/HrReviewView.tsx';
 import { ReviewAndSubmit } from './components/ReviewAndSubmit.tsx';
 import { StatusTrackerView } from './components/StatusTrackerView.tsx';
@@ -86,6 +87,8 @@ export default function App() {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submittedRecord, setSubmittedRecord] = useState<SubmittedApplicationRecord | null>(null);
   const [trackInitialCode, setTrackInitialCode] = useState('');
+  const [hrUnlocked, setHrUnlocked] = useState(false);
+  const [hrPinModalOpen, setHrPinModalOpen] = useState(false);
 
   useEffect(() => {
     if (submittedRecord) return;
@@ -239,6 +242,10 @@ export default function App() {
       <TopBar
         activePage={activePage}
         onNavigate={(page) => {
+          if (page === 'hr' && !hrUnlocked) {
+            setHrPinModalOpen(true);
+            return;
+          }
           setActivePage(page);
           scrollToTop();
         }}
@@ -481,9 +488,29 @@ export default function App() {
 
           {activePage === 'track' && <StatusTrackerView initialCode={trackInitialCode} />}
 
-          {activePage === 'hr' && <HrReviewView />}
+          {activePage === 'hr' && hrUnlocked && (
+            <HrReviewView
+              onLogout={() => {
+                setHrUnlocked(false);
+                setActivePage('overview');
+                scrollToTop();
+              }}
+            />
+          )}
         </div>
       </main>
+
+      {/* HR 4-Digit Phone Keypad PIN Modal */}
+      <HrPinModal
+        open={hrPinModalOpen}
+        onClose={() => setHrPinModalOpen(false)}
+        onSuccess={() => {
+          setHrUnlocked(true);
+          setHrPinModalOpen(false);
+          setActivePage('hr');
+          scrollToTop();
+        }}
+      />
 
       {/* Quiet Footer */}
       <footer className="no-print relative z-10 mt-10 border-t border-white/60 bg-white/50 backdrop-blur-md">

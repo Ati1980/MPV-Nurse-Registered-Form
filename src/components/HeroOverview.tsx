@@ -35,18 +35,21 @@ export function HeroOverview({
           <div className="flex flex-col justify-between lg:col-span-7">
             <div>
               <p className="text-xs font-medium tracking-wide text-teal-800 sm:text-sm">
-                กลุ่มมิตรผล <span aria-hidden="true">·</span> ฝ่ายทรัพยากรบุคคลและอาชีวอนามัย{' '}
+                กลุ่มมิตรผล <span aria-hidden="true">·</span> ฝ่ายทรัพยากรบุคคล{' '}
                 <span aria-hidden="true">·</span> ประจำปี 2570
               </p>
 
               <h1
-                className="font-display mt-2.5 font-bold tracking-tight text-teal-950 leading-[1.22]"
+                className="font-display mt-3 font-bold tracking-normal text-teal-950 leading-[1.38] sm:leading-[1.32]"
                 style={{
-                  fontSize: 'clamp(1.5rem, 3.2vw, 2.75rem)',
-                  textWrap: 'balance',
+                  fontSize: 'clamp(1.25rem, 2.75vw, 2.45rem)',
                 }}
               >
-                ฟอร์มรับสมัครพยาบาลวิชาชีพ โรงงานน้ำตาลมิตรภูเวียง ประจำปี 2570
+                <span className="inline-block">
+                  ฟอร์มรับสมัคร<span className="whitespace-nowrap">พยาบาลวิชาชีพ</span>
+                </span>{' '}
+                <span className="inline-block whitespace-nowrap">โรงงานน้ำตาลมิตรภูเวียง</span>{' '}
+                <span className="inline-block whitespace-nowrap">ประจำปี 2570</span>
               </h1>
 
               <p className="mt-3.5 max-w-2xl text-sm leading-relaxed text-teal-900/85 sm:mt-4 sm:text-base">

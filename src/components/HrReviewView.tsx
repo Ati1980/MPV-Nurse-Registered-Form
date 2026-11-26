@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ExternalLink, FileText, Printer, RefreshCw } from 'lucide-react';
+import { ExternalLink, FileText, LogOut, Printer, RefreshCw } from 'lucide-react';
 import type {
   ApplicationStatus,
   SubmittedApplicationRecord,
@@ -15,7 +15,11 @@ const STATUS_OPTIONS: ApplicationStatus[] = [
   'นัดหมายสัมภาษณ์',
 ];
 
-export function HrReviewView() {
+interface HrReviewViewProps {
+  onLogout: () => void;
+}
+
+export function HrReviewView({ onLogout }: HrReviewViewProps) {
   const [applications, setApplications] = useState<SubmittedApplicationRecord[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -87,14 +91,25 @@ export function HrReviewView() {
             </p>
           </div>
 
-          <button
-            type="button"
-            onClick={() => void fetchApplications()}
-            className="btn-lift inline-flex min-h-[42px] items-center gap-2 rounded-xl border border-teal-900/15 bg-white/80 px-4 py-2 text-sm font-medium text-teal-950 hover:bg-white cursor-pointer"
-          >
-            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-            <span>รีเฟรชรายการ</span>
-          </button>
+          <div className="flex flex-wrap items-center gap-2.5">
+            <button
+              type="button"
+              onClick={() => void fetchApplications()}
+              className="btn-lift inline-flex min-h-[42px] items-center gap-2 rounded-xl border border-teal-900/15 bg-white/80 px-4 py-2 text-sm font-medium text-teal-950 hover:bg-white cursor-pointer"
+            >
+              <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+              <span>รีเฟรชรายการ</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={onLogout}
+              className="btn-lift inline-flex min-h-[42px] items-center gap-2 rounded-xl border border-rose-200 bg-rose-50/90 px-4 py-2 text-sm font-medium text-rose-800 hover:bg-rose-100 cursor-pointer"
+            >
+              <LogOut className="h-4 w-4" />
+              <span>ออกจากระบบ</span>
+            </button>
+          </div>
         </div>
 
         {loading && (

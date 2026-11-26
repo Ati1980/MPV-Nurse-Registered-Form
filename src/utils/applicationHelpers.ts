@@ -187,16 +187,74 @@ export function createInitialApplicationData(): ApplicationFormData {
 
 export function calculateAgeFromDob(dobString: string): string {
   if (!dobString) return '';
-  const birth = new Date(dobString);
-  if (Number.isNaN(birth.getTime())) return '';
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dobString.trim());
+  let birthYear: number;
+  let birthMonth: number;
+  let birthDay: number;
+
+  if (match) {
+    birthYear = Number(match[1]);
+    birthMonth = Number(match[2]) - 1;
+    birthDay = Number(match[3]);
+    // Convert Thai Buddhist Era (พ.ศ.) year if user entered 2400+ in date input
+    if (birthYear >= 2400) {
+      birthYear -= 543;
+    }
+  } else {
+    const birth = new Date(dobString);
+    if (Number.isNaN(birth.getTime())) return '';
+    birthYear = birth.getFullYear();
+    birthMonth = birth.getMonth();
+    birthDay = birth.getDate();
+    if (birthYear >= 2400) {
+      birthYear -= 543;
+    }
+  }
+
   const today = new Date();
-  let age = today.getFullYear() - birth.getFullYear();
-  const m = today.getMonth() - birth.getMonth();
-  if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) {
+  let age = today.getFullYear() - birthYear;
+  const m = today.getMonth() - birthMonth;
+  if (m < 0 || (m === 0 && today.getDate() < birthDay)) {
     age -= 1;
   }
-  if (age < 15 || age > 90) return '';
+
+  if (age < 0 || age > 120) return '';
   return String(age);
+}
+
+const THAI_ONLY_DISALLOWED_RE = /[^\u0E01-\u0E3A\u0E40-\u0E4E\s]/g;
+const THAI_ONLY_FULL_RE = /^[\u0E01-\u0E3A\u0E40-\u0E4E\s]+$/;
+const ENGLISH_ONLY_DISALLOWED_RE = /[^A-Za-z\s]/g;
+const ENGLISH_ONLY_FULL_RE = /^[A-Za-z\s]+$/;
+
+export function sanitizeThaiOnly(value: string): string {
+  return value.replace(THAI_ONLY_DISALLOWED_RE, '');
+}
+
+export function isThaiOnlyValid(value: string): boolean {
+  const trimmed = value.trim();
+  if (!trimmed) return false;
+  return THAI_ONLY_FULL_RE.test(trimmed);
+}
+
+export function sanitizeEnglishOnly(value: string): string {
+  return value.replace(ENGLISH_ONLY_DISALLOWED_RE, '');
+}
+
+export function isEnglishOnlyValid(value: string): boolean {
+  const trimmed = value.trim();
+  if (!trimmed) return false;
+  return ENGLISH_ONLY_FULL_RE.test(trimmed);
+}
+
+export function sanitizeDigitsOnly(value: string): string {
+  return value.replace(/[^0-9]/g, '');
+}
+
+export function isDigitsOnlyValid(value: string): boolean {
+  const trimmed = value.trim();
+  if (!trimmed) return false;
+  return /^[0-9]+$/.test(trimmed);
 }
 
 export function validateStep1Personal(data: ApplicationFormData): ValidationErrors {
@@ -204,18 +262,37 @@ export function validateStep1Personal(data: ApplicationFormData): ValidationErro
   const p = data.personalInfo;
 
   if (!p.title) errors['personalInfo.title'] = 'กรุณาเลือกคำนำหน้าชื่อ';
-  if (!p.fullNameTh.trim()) errors['personalInfo.fullNameTh'] = 'กรุณากรอกชื่อ-นามสกุลภาษาไทย';
-  if (!p.fullNameEn.trim()) errors['personalInfo.fullNameEn'] = 'กรุณากรอกชื่อ-นามสกุลภาษาอังกฤษ';
+  if (!p.fullNameTh.trim()) {
+    errors['personalInfo.fullNameTh'] = 'กรุณากรอกชื่อ-นามสกุลภาษาไทย';
+  } else if (!isThaiOnlyValid(p.fullNameTh)) {
+    errors['personalInfo.fullNameTh'] = 'กรุณากรอกชื่อ-นามสกุลเป็นภาษาไทยเท่านั้น และห้ามใส่ตัวเลข';
+  }
+  if (p.nicknameTh.trim() && !isThaiOnlyValid(p.nicknameTh)) {
+    errors['personalInfo.nicknameTh'] = 'กรุณากรอกชื่อเล่นเป็นภาษาไทยเท่านั้น และห้ามใส่ตัวเลข';
+  }
+  if (!p.fullNameEn.trim()) {
+    errors['personalInfo.fullNameEn'] = 'กรุณากรอกชื่อ-นามสกุลภาษาอังกฤษ';
+  } else if (!isEnglishOnlyValid(p.fullNameEn)) {
+    errors['personalInfo.fullNameEn'] = 'กรุณากรอกชื่อ-นามสกุลเป็นภาษาอังกฤษเท่านั้น และห้ามใส่ตัวเลข';
+  }
   if (!p.dateOfBirth) errors['personalInfo.dateOfBirth'] = 'กรุณาระบุวัน/เดือน/ปีเกิด';
   if (!p.age.trim()) errors['personalInfo.age'] = 'กรุณาระบุอายุ';
-  if (!p.placeOfBirth.trim()) errors['personalInfo.placeOfBirth'] = 'กรุณาระบุภูมิลำเนา';
-  if (!p.nationality.trim()) errors['personalInfo.nationality'] = 'กรุณาระบุสัญชาติ';
+  if (!p.placeOfBirth.trim()) {
+    errors['personalInfo.placeOfBirth'] = 'กรุณาระบุภูมิลำเนา';
+  } else if (!isThaiOnlyValid(p.placeOfBirth)) {
+    errors['personalInfo.placeOfBirth'] = 'กรุณากรอกภูมิลำเนาเป็นภาษาไทยเท่านั้น และห้ามใส่ตัวเลข';
+  }
+  if (!p.nationality.trim()) {
+    errors['personalInfo.nationality'] = 'กรุณาระบุสัญชาติ';
+  } else if (!isThaiOnlyValid(p.nationality)) {
+    errors['personalInfo.nationality'] = 'กรุณากรอกสัญชาติเป็นภาษาไทยเท่านั้น และห้ามใส่ตัวเลข';
+  }
 
-  const cleanMobile = p.mobileNumber.replace(/[\s-]/g, '');
+  const cleanMobile = p.mobileNumber.trim();
   if (!cleanMobile) {
     errors['personalInfo.mobileNumber'] = 'กรุณากรอกเบอร์มือถือ';
-  } else if (!/^0\d{8,9}$/.test(cleanMobile)) {
-    errors['personalInfo.mobileNumber'] = 'รูปแบบเบอร์มือถือไม่ถูกต้อง (เช่น 0812345678)';
+  } else if (!isDigitsOnlyValid(cleanMobile) || !/^0\d{8,9}$/.test(cleanMobile)) {
+    errors['personalInfo.mobileNumber'] = 'กรุณากรอกเบอร์มือถือเป็นตัวเลขเท่านั้น (เช่น 0812345678)';
   }
 
   if (!p.email.trim()) {
@@ -224,11 +301,20 @@ export function validateStep1Personal(data: ApplicationFormData): ValidationErro
     errors['personalInfo.email'] = 'รูปแบบอีเมลไม่ถูกต้อง';
   }
 
-  const cleanId = p.idCardOrPassport.replace(/[\s-]/g, '');
+  const cleanId = p.idCardOrPassport.trim();
   if (!cleanId) {
     errors['personalInfo.idCardOrPassport'] = 'กรุณากรอกเลขที่บัตรประชาชนหรือหนังสือเดินทาง';
+  } else if (!isDigitsOnlyValid(cleanId)) {
+    errors['personalInfo.idCardOrPassport'] = 'กรุณากรอกเป็นตัวเลขเท่านั้น (0-9)';
   } else if (cleanId.length < 6) {
-    errors['personalInfo.idCardOrPassport'] = 'เลขที่บัตรประชาชนหรือหนังสือเดินทางไม่สมบูรณ์';
+    errors['personalInfo.idCardOrPassport'] = 'เลขที่บัตรประชาชนไม่สมบูรณ์';
+  }
+
+  if (p.permanentLandLine.trim() && !isDigitsOnlyValid(p.permanentLandLine)) {
+    errors['personalInfo.permanentLandLine'] = 'กรุณากรอกเบอร์โทรศัพท์เป็นตัวเลขเท่านั้น';
+  }
+  if (p.presentLandLine.trim() && !isDigitsOnlyValid(p.presentLandLine)) {
+    errors['personalInfo.presentLandLine'] = 'กรุณากรอกเบอร์โทรศัพท์เป็นตัวเลขเท่านั้น';
   }
 
   if (!p.permanentAddress.trim()) {
@@ -284,9 +370,6 @@ export function validateStep3NursingEmergency(data: ApplicationFormData): Valida
   }
   if (!n.licenseExpiryDate) {
     errors['nursingQualification.licenseExpiryDate'] = 'กรุณาระบุวันหมดอายุใบประกอบวิชาชีพ';
-  }
-  if (!n.availableStartDate) {
-    errors['nursingQualification.availableStartDate'] = 'กรุณาระบุวันที่สะดวกเริ่มปฏิบัติงาน';
   }
 
   if (!e.fullName.trim()) {

@@ -1,5 +1,11 @@
+import { useState } from 'react';
 import type { PersonalInformation, TitlePrefix, ValidationErrors } from '../types/application.ts';
-import { calculateAgeFromDob } from '../utils/applicationHelpers.ts';
+import {
+  calculateAgeFromDob,
+  sanitizeDigitsOnly,
+  sanitizeEnglishOnly,
+  sanitizeThaiOnly,
+} from '../utils/applicationHelpers.ts';
 
 interface StepPersonalInfoProps {
   personalInfo: PersonalInformation;
@@ -9,33 +15,83 @@ interface StepPersonalInfoProps {
 
 const TITLE_OPTIONS: TitlePrefix[] = ['นาย (Mr.)', 'นาง (Mrs.)', 'นางสาว (Ms.)'];
 
+const THAI_ONLY_FIELDS = new Set<keyof PersonalInformation>([
+  'fullNameTh',
+  'nicknameTh',
+  'placeOfBirth',
+  'nationality',
+]);
+
+const DIGITS_ONLY_FIELDS = new Set<keyof PersonalInformation>([
+  'mobileNumber',
+  'idCardOrPassport',
+  'permanentLandLine',
+  'presentLandLine',
+]);
+
 export function StepPersonalInfo({
   personalInfo,
   errors,
   onChange,
 }: StepPersonalInfoProps) {
+  const [fieldHint, setFieldHint] = useState<{ field: string; message: string } | null>(null);
+
   const updateField = <K extends keyof PersonalInformation>(
     key: K,
     value: PersonalInformation[K]
   ) => {
+    let nextValue = value;
+
+    if (THAI_ONLY_FIELDS.has(key) && typeof value === 'string') {
+      const sanitized = sanitizeThaiOnly(value);
+      if (sanitized !== value) {
+        setFieldHint({
+          field: String(key),
+          message: 'กรุณากรอกเป็นภาษาไทยเท่านั้น และห้ามใส่ตัวเลข',
+        });
+      } else if (fieldHint?.field === String(key)) {
+        setFieldHint(null);
+      }
+      nextValue = sanitized as PersonalInformation[K];
+    } else if (key === 'fullNameEn' && typeof value === 'string') {
+      const sanitized = sanitizeEnglishOnly(value);
+      if (sanitized !== value) {
+        setFieldHint({
+          field: 'fullNameEn',
+          message: 'กรุณากรอกเป็นภาษาอังกฤษเท่านั้น และห้ามใส่ตัวเลข',
+        });
+      } else if (fieldHint?.field === 'fullNameEn') {
+        setFieldHint(null);
+      }
+      nextValue = sanitized as PersonalInformation[K];
+    } else if (DIGITS_ONLY_FIELDS.has(key) && typeof value === 'string') {
+      const sanitized = sanitizeDigitsOnly(value);
+      if (sanitized !== value) {
+        setFieldHint({
+          field: String(key),
+          message: 'กรุณากรอกเป็นตัวเลขเท่านั้น (0-9)',
+        });
+      } else if (fieldHint?.field === String(key)) {
+        setFieldHint(null);
+      }
+      nextValue = sanitized as PersonalInformation[K];
+    }
+
     const next: PersonalInformation = {
       ...personalInfo,
-      [key]: value,
+      [key]: nextValue,
     };
 
-    if (key === 'dateOfBirth' && typeof value === 'string') {
-      const computedAge = calculateAgeFromDob(value);
-      if (computedAge) {
-        next.age = computedAge;
-      }
+    if (key === 'dateOfBirth' && typeof nextValue === 'string') {
+      next.age = calculateAgeFromDob(nextValue);
     }
 
     if (next.sameAsPermanent) {
       if (key === 'permanentAddress') {
-        next.presentAddress = value as string;
+        next.presentAddress = nextValue as string;
       }
       if (key === 'permanentLandLine') {
-        next.presentLandLine = value as string;
+        next.presentLandLine = nextValue as string;
       }
     }
 
@@ -54,6 +110,15 @@ export function StepPersonalInfo({
   const renderError = (key: string) => {
     if (!errors[key]) return null;
     return <p className="animate-fade-slide-down mt-1.5 text-xs font-medium text-rose-700">{errors[key]}</p>;
+  };
+
+  const renderFieldHint = (field: keyof PersonalInformation) => {
+    if (fieldHint?.field !== String(field)) return null;
+    return (
+      <p className="animate-fade-slide-down mt-1 text-xs font-medium text-amber-800">
+        {fieldHint.message}
+      </p>
+    );
   };
 
   return (
@@ -109,11 +174,13 @@ export function StepPersonalInfo({
           <input
             id="fullNameTh"
             type="text"
+            lang="th"
             value={personalInfo.fullNameTh}
             onChange={(e) => updateField('fullNameTh', e.target.value)}
             placeholder="เช่น สุภาพร ใจดี"
             className="glass-input mt-1.5 w-full min-h-[44px] rounded-xl px-3.5 py-2.5 text-sm text-teal-950 placeholder:text-teal-900/40"
           />
+          {renderFieldHint('fullNameTh')}
           {renderError('personalInfo.fullNameTh')}
         </div>
 
@@ -124,11 +191,14 @@ export function StepPersonalInfo({
           <input
             id="nicknameTh"
             type="text"
+            lang="th"
             value={personalInfo.nicknameTh}
             onChange={(e) => updateField('nicknameTh', e.target.value)}
             placeholder="เช่น น้ำ"
             className="glass-input mt-1.5 w-full min-h-[44px] rounded-xl px-3.5 py-2.5 text-sm text-teal-950 placeholder:text-teal-900/40"
           />
+          {renderFieldHint('nicknameTh')}
+          {renderError('personalInfo.nicknameTh')}
         </div>
       </div>
 
@@ -141,11 +211,13 @@ export function StepPersonalInfo({
           <input
             id="fullNameEn"
             type="text"
+            lang="en"
             value={personalInfo.fullNameEn}
             onChange={(e) => updateField('fullNameEn', e.target.value)}
             placeholder="e.g., Supaporn Jaidee"
             className="glass-input mt-1.5 w-full min-h-[44px] rounded-xl px-3.5 py-2.5 text-sm text-teal-950 placeholder:text-teal-900/40"
           />
+          {renderFieldHint('fullNameEn')}
           {renderError('personalInfo.fullNameEn')}
         </div>
       </div>
@@ -173,12 +245,14 @@ export function StepPersonalInfo({
           <input
             id="age"
             type="number"
-            min={18}
-            max={75}
+            min={0}
+            max={120}
             value={personalInfo.age}
             onChange={(e) => updateField('age', e.target.value)}
-            placeholder="ปี"
-            className="glass-input mt-1.5 w-full min-h-[44px] rounded-xl px-3.5 py-2.5 text-sm text-teal-950 tabular-nums"
+            placeholder="อัตโนมัติ"
+            className={`glass-input mt-1.5 w-full min-h-[44px] rounded-xl px-3.5 py-2.5 text-sm text-teal-950 tabular-nums transition-colors ${
+              personalInfo.dateOfBirth && personalInfo.age ? 'bg-teal-50/75 font-semibold' : ''
+            }`}
           />
           {renderError('personalInfo.age')}
         </div>
@@ -190,11 +264,13 @@ export function StepPersonalInfo({
           <input
             id="placeOfBirth"
             type="text"
+            lang="th"
             value={personalInfo.placeOfBirth}
             onChange={(e) => updateField('placeOfBirth', e.target.value)}
             placeholder="เช่น ขอนแก่น"
             className="glass-input mt-1.5 w-full min-h-[44px] rounded-xl px-3.5 py-2.5 text-sm text-teal-950 placeholder:text-teal-900/40"
           />
+          {renderFieldHint('placeOfBirth')}
           {renderError('personalInfo.placeOfBirth')}
         </div>
 
@@ -205,11 +281,13 @@ export function StepPersonalInfo({
           <input
             id="nationality"
             type="text"
+            lang="th"
             value={personalInfo.nationality}
             onChange={(e) => updateField('nationality', e.target.value)}
-            placeholder="เช่น ไทย"
+            placeholder="เช่น ไทย (ภาษาไทยเท่านั้น)"
             className="glass-input mt-1.5 w-full min-h-[44px] rounded-xl px-3.5 py-2.5 text-sm text-teal-950 placeholder:text-teal-900/40"
           />
+          {renderFieldHint('nationality')}
           {renderError('personalInfo.nationality')}
         </div>
       </div>
@@ -223,11 +301,14 @@ export function StepPersonalInfo({
           <input
             id="mobileNumber"
             type="tel"
+            inputMode="numeric"
+            pattern="[0-9]*"
             value={personalInfo.mobileNumber}
             onChange={(e) => updateField('mobileNumber', e.target.value)}
             placeholder="0812345678"
             className="glass-input mt-1.5 w-full min-h-[44px] rounded-xl px-3.5 py-2.5 text-sm text-teal-950 font-mono tabular-nums placeholder:font-sans placeholder:text-teal-900/40"
           />
+          {renderFieldHint('mobileNumber')}
           {renderError('personalInfo.mobileNumber')}
         </div>
 
@@ -253,11 +334,14 @@ export function StepPersonalInfo({
           <input
             id="idCardOrPassport"
             type="text"
+            inputMode="numeric"
+            pattern="[0-9]*"
             value={personalInfo.idCardOrPassport}
             onChange={(e) => updateField('idCardOrPassport', e.target.value)}
             placeholder="เลขประจำตัวประชาชน 13 หลัก หรือ Passport"
             className="glass-input mt-1.5 w-full min-h-[44px] rounded-xl px-3.5 py-2.5 text-sm text-teal-950 font-mono tabular-nums placeholder:font-sans placeholder:text-teal-900/40"
           />
+          {renderFieldHint('idCardOrPassport')}
           {renderError('personalInfo.idCardOrPassport')}
         </div>
 
@@ -301,11 +385,15 @@ export function StepPersonalInfo({
             <input
               id="permanentLandLine"
               type="tel"
+              inputMode="numeric"
+              pattern="[0-9]*"
               value={personalInfo.permanentLandLine}
               onChange={(e) => updateField('permanentLandLine', e.target.value)}
               placeholder="เบอร์โทรศัพท์บ้าน (ถ้ามี)"
               className="glass-input mt-1.5 w-full min-h-[44px] rounded-xl px-3.5 py-2.5 text-sm text-teal-950 font-mono tabular-nums placeholder:font-sans placeholder:text-teal-900/40"
             />
+            {renderFieldHint('permanentLandLine')}
+            {renderError('personalInfo.permanentLandLine')}
           </div>
         </div>
 
@@ -350,6 +438,8 @@ export function StepPersonalInfo({
               <input
                 id="presentLandLine"
                 type="tel"
+                inputMode="numeric"
+                pattern="[0-9]*"
                 value={personalInfo.presentLandLine}
                 disabled={personalInfo.sameAsPermanent}
                 onChange={(e) => updateField('presentLandLine', e.target.value)}
@@ -358,6 +448,8 @@ export function StepPersonalInfo({
                   personalInfo.sameAsPermanent ? 'opacity-70 bg-teal-50/70' : ''
                 }`}
               />
+              {renderFieldHint('presentLandLine')}
+              {renderError('personalInfo.presentLandLine')}
             </div>
           </div>
         </div>

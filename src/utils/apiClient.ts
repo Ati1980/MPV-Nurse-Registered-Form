@@ -166,3 +166,27 @@ export async function updateApplicationStatusApi(
     return records[idx];
   }
 }
+
+export async function verifyHrPinApi(pin: string): Promise<boolean> {
+  try {
+    const res = await fetch('/api/hr/verify-pin', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pin }),
+    });
+
+    const contentType = res.headers.get('content-type') || '';
+    if (res.status === 404 || res.status === 405 || !contentType.includes('application/json')) {
+      throw new Error('STATIC_HOST_FALLBACK');
+    }
+
+    const data = (await res.json()) as { ok?: boolean };
+    return Boolean(res.ok && data.ok);
+  } catch (err) {
+    if (err instanceof Error && err.message !== 'STATIC_HOST_FALLBACK' && !err.message.includes('Failed to fetch')) {
+      return false;
+    }
+    const fallbackPin = (import.meta.env.VITE_HR_PIN as string | undefined) || '2910';
+    return pin === fallbackPin;
+  }
+}

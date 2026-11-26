@@ -1,4 +1,4 @@
-import express from 'express';
+import express, { type NextFunction, type Request, type Response } from 'express';
 import fs from 'node:fs';
 import path from 'node:path';
 import type {
@@ -104,6 +104,20 @@ async function startServer(): Promise<void> {
 
   app.get('/api/health', (_req, res) => {
     res.json({ ok: true, service: 'mpv-nurse-recruitment-2570' });
+  });
+
+  app.post('/api/hr/verify-pin', (req, res) => {
+    const { pin } = (req.body || {}) as { pin?: string };
+    const expectedPin = process.env.HR_PIN || '2910';
+    if (typeof pin !== 'string' || !/^\d{4}$/.test(pin)) {
+      res.status(400).json({ ok: false, error: 'กรุณากรอกรหัส PIN 4 หลัก' });
+      return;
+    }
+    if (pin !== expectedPin) {
+      res.status(401).json({ ok: false, error: 'รหัส PIN ไม่ถูกต้อง' });
+      return;
+    }
+    res.json({ ok: true });
   });
 
   app.get('/api/files/:applicationId/:fileName', (req, res) => {
@@ -264,9 +278,28 @@ async function startServer(): Promise<void> {
     });
   }
 
-  app.listen(PORT, '0.0.0.0', () => {
+  app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
+    console.error('Unhandled request error:', err);
+    if (!res.headersSent) {
+      res.status(500).json({ error: 'เกิดข้อผิดพลาดภายในเซิร์ฟเวอร์' });
+    }
+  });
+
+  const server = app.listen(PORT, '0.0.0.0', () => {
     console.log(`Mitr Phuviang Nurse Recruitment Server running on http://0.0.0.0:${PORT}`);
   });
+
+  // Prevent reverse-proxy / pre-warmer keep-alive race ECONNRESET
+  server.keepAliveTimeout = 65_000;
+  server.headersTimeout = 66_000;
+
+  const shutdown = () => {
+    server.close(() => {
+      process.exit(0);
+    });
+  };
+  process.once('SIGTERM', shutdown);
+  process.once('SIGINT', shutdown);
 }
 
 startServer().catch((err) => {

@@ -146,54 +146,24 @@ export function StepNursingAndEmergency({
           </label>
         </div>
 
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-12">
-          {nursingQualification.occupationalHealthTrained && (
-            <div className="animate-fade-scale sm:col-span-4">
-              <label
-                htmlFor="occupationalHealthHours"
-                className="block text-sm font-semibold text-teal-950"
-              >
-                สถาบันที่จัดอบรมอาชีวอนามัย / ปีที่อบรม
-              </label>
-              <input
-                id="occupationalHealthHours"
-                type="text"
-                value={nursingQualification.occupationalHealthHours}
-                onChange={(e) => updateNursing('occupationalHealthHours', e.target.value)}
-                placeholder="เช่น สภาการพยาบาล ปี 2568"
-                className="glass-input mt-1.5 w-full min-h-[44px] rounded-xl px-3.5 py-2.5 text-sm text-teal-950"
-              />
-            </div>
-          )}
-
-          <div className={nursingQualification.occupationalHealthTrained ? 'sm:col-span-4' : 'sm:col-span-6'}>
-            <label htmlFor="availableStartDate" className="block text-sm font-semibold text-teal-950">
-              วันที่สะดวกเริ่มปฏิบัติงาน <span className="text-rose-600">*</span>
+        {nursingQualification.occupationalHealthTrained && (
+          <div className="animate-fade-scale">
+            <label
+              htmlFor="occupationalHealthHours"
+              className="block text-sm font-semibold text-teal-950"
+            >
+              สถาบันที่จัดอบรมอาชีวอนามัย / ปีที่อบรม
             </label>
             <input
-              id="availableStartDate"
-              type="date"
-              value={nursingQualification.availableStartDate}
-              onChange={(e) => updateNursing('availableStartDate', e.target.value)}
-              className="glass-input mt-1.5 w-full min-h-[44px] rounded-xl px-3.5 py-2.5 text-sm text-teal-950 tabular-nums"
-            />
-            {renderError('nursingQualification.availableStartDate')}
-          </div>
-
-          <div className={nursingQualification.occupationalHealthTrained ? 'sm:col-span-4' : 'sm:col-span-6'}>
-            <label htmlFor="expectedSalary" className="block text-sm font-semibold text-teal-950">
-              เงินเดือนที่คาดหวัง (บาท/เดือน)
-            </label>
-            <input
-              id="expectedSalary"
+              id="occupationalHealthHours"
               type="text"
-              value={nursingQualification.expectedSalary}
-              onChange={(e) => updateNursing('expectedSalary', e.target.value)}
-              placeholder="เช่น 28,000 หรือ ตามโครงสร้างบริษัท"
-              className="glass-input mt-1.5 w-full min-h-[44px] rounded-xl px-3.5 py-2.5 text-sm text-teal-950 tabular-nums placeholder:text-teal-900/40"
+              value={nursingQualification.occupationalHealthHours}
+              onChange={(e) => updateNursing('occupationalHealthHours', e.target.value)}
+              placeholder="เช่น สภาการพยาบาล ปี 2568"
+              className="glass-input mt-1.5 w-full min-h-[44px] rounded-xl px-3.5 py-2.5 text-sm text-teal-950"
             />
           </div>
-        </div>
+        )}
 
         <div>
           <label htmlFor="clinicalSkillsNote" className="block text-sm font-semibold text-teal-950">

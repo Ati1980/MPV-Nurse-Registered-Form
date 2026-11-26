@@ -391,6 +391,29 @@ export function validateStep3NursingEmergency(data: ApplicationFormData): Valida
   return errors;
 }
 
+export function validateEmergencyContact(data: ApplicationFormData): ValidationErrors {
+  const errors: ValidationErrors = {};
+  const e = data.emergencyContact;
+
+  if (!e.fullName.trim()) {
+    errors['emergencyContact.fullName'] = 'กรุณากรอกชื่อ-นามสกุลผู้ติดต่อฉุกเฉิน';
+  }
+  if (!e.relationship.trim()) {
+    errors['emergencyContact.relationship'] = 'กรุณาระบุความสัมพันธ์';
+  }
+  if (!e.address.trim()) {
+    errors['emergencyContact.address'] = 'กรุณากรอกที่อยู่ผู้ติดต่อฉุกเฉิน';
+  }
+  const cleanEmergencyMobile = e.mobilePhone.replace(/[\s-]/g, '');
+  if (!cleanEmergencyMobile) {
+    errors['emergencyContact.mobilePhone'] = 'กรุณากรอกเบอร์โทรศัพท์มือถือผู้ติดต่อฉุกเฉิน';
+  } else if (!/^0\d{8,9}$/.test(cleanEmergencyMobile)) {
+    errors['emergencyContact.mobilePhone'] = 'รูปแบบเบอร์โทรศัพท์มือถือไม่ถูกต้อง';
+  }
+
+  return errors;
+}
+
 export function validateStep4Documents(data: ApplicationFormData): ValidationErrors {
   const errors: ValidationErrors = {};
 
@@ -416,8 +439,7 @@ export function validateStep4Documents(data: ApplicationFormData): ValidationErr
 export function validateAllSteps(data: ApplicationFormData): ValidationErrors {
   return {
     ...validateStep1Personal(data),
-    ...validateStep2WorkEducation(data),
-    ...validateStep3NursingEmergency(data),
+    ...validateEmergencyContact(data),
     ...validateStep4Documents(data),
   };
 }

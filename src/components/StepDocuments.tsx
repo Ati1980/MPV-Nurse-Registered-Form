@@ -161,7 +161,7 @@ export function StepDocuments({
     <div className="space-y-6">
       <div className="border-b border-teal-900/10 pb-4">
         <h2 className="font-display text-xl font-semibold text-teal-950 sm:text-2xl">
-          5. แนบเอกสารประกอบการสมัครออนไลน์ (Document Attachments)
+          3. แนบเอกสารประกอบการสมัครออนไลน์ (Document Attachments)
         </h2>
         <p className="mt-1 text-sm text-teal-900/75">
           กรุณาอัปโหลดไฟล์เอกสารที่ชัดเจนและครบถ้วน รองรับการลากไฟล์มาวางหรือเลือกไฟล์จากมือถือ/คอมพิวเตอร์

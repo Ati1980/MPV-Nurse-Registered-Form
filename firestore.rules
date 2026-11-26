@@ -147,9 +147,9 @@ service cloud.firestore {
           'blsAclsCertified', 'shiftWorkReady', 'availableStartDate',
           'expectedSalary', 'clinicalSkillsNote'
         ]) &&
-        isBoundedString(n.licenseNumber, 1, 60) &&
+        isBoundedString(n.licenseNumber, 0, 60) &&
         isBoundedString(n.licenseIssueDate, 0, 30) &&
-        isBoundedString(n.licenseExpiryDate, 4, 30) &&
+        isBoundedString(n.licenseExpiryDate, 0, 30) &&
         n.occupationalHealthTrained is bool &&
         isBoundedString(n.occupationalHealthHours, 0, 30) &&
         n.blsAclsCertified is bool &&
@@ -163,10 +163,10 @@ service cloud.firestore {
       return e is map &&
         e.keys().hasAll(['fullName', 'relationship', 'address', 'mobilePhone', 'landLine']) &&
         e.keys().hasOnly(['fullName', 'relationship', 'address', 'mobilePhone', 'landLine']) &&
-        isBoundedString(e.fullName, 1, 120) &&
-        isBoundedString(e.relationship, 1, 60) &&
-        isBoundedString(e.address, 1, 500) &&
-        isBoundedString(e.mobilePhone, 9, 20) &&
+        isBoundedString(e.fullName, 0, 120) &&
+        isBoundedString(e.relationship, 0, 60) &&
+        isBoundedString(e.address, 0, 500) &&
+        isBoundedString(e.mobilePhone, 0, 20) &&
         isBoundedString(e.landLine, 0, 30);
     }
 

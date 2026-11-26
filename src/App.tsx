@@ -1,14 +1,13 @@
 import { useEffect, useState } from 'react';
-import { ArrowLeft, ArrowRight, RotateCcw } from 'lucide-react';
+import { Loader2, RotateCcw, Send } from 'lucide-react';
 import { HeroOverview } from './components/HeroOverview.tsx';
 import { HrPinModal } from './components/HrPinModal.tsx';
 import { HrReviewView } from './components/HrReviewView.tsx';
 import { ReviewAndSubmit } from './components/ReviewAndSubmit.tsx';
 import { StatusTrackerView } from './components/StatusTrackerView.tsx';
 import { StepDocuments } from './components/StepDocuments.tsx';
-import { StepNursingAndEmergency } from './components/StepNursingAndEmergency.tsx';
+import { StepEmergencyContact } from './components/StepEmergencyContact.tsx';
 import { StepPersonalInfo } from './components/StepPersonalInfo.tsx';
-import { StepWorkAndEducation } from './components/StepWorkAndEducation.tsx';
 import { TopBar, type ActivePage } from './components/TopBar.tsx';
 import type {
   ApplicationFormData,
@@ -20,23 +19,10 @@ import {
   createInitialApplicationData,
   DRAFT_STORAGE_KEY,
   validateAllSteps,
-  validateStep1Personal,
-  validateStep2WorkEducation,
-  validateStep3NursingEmergency,
-  validateStep4Documents,
 } from './utils/applicationHelpers.ts';
-
-const FORM_STEPS = [
-  { index: 0, code: '01', label: 'ข้อมูลส่วนตัว' },
-  { index: 1, code: '02', label: 'ประวัติงานและการศึกษา' },
-  { index: 2, code: '03', label: 'ใบประกอบฯ และฉุกเฉิน' },
-  { index: 3, code: '04', label: 'แนบเอกสารออนไลน์' },
-  { index: 4, code: '05', label: 'ตรวจทานและส่งใบสมัคร' },
-];
 
 export default function App() {
   const [activePage, setActivePage] = useState<ActivePage>('overview');
-  const [currentStep, setCurrentStep] = useState<number>(0);
   const [formData, setFormData] = useState<ApplicationFormData>(() => {
     try {
       const saved = localStorage.getItem(DRAFT_STORAGE_KEY);
@@ -118,44 +104,6 @@ export default function App() {
     scrollToTop();
   };
 
-  const validateForStep = (stepIndex: number): ValidationErrors => {
-    if (stepIndex === 0) return validateStep1Personal(formData);
-    if (stepIndex === 1) return validateStep2WorkEducation(formData);
-    if (stepIndex === 2) return validateStep3NursingEmergency(formData);
-    if (stepIndex === 3) return validateStep4Documents(formData);
-    return validateAllSteps(formData);
-  };
-
-  const handleNextStep = () => {
-    const stepErrors = validateForStep(currentStep);
-    if (Object.keys(stepErrors).length > 0) {
-      setErrors(stepErrors);
-      setStepBannerError('กรุณากรอกข้อมูลและแนบเอกสารในช่องที่จำเป็นให้ครบถ้วนก่อนดำเนินการต่อ');
-      scrollToTop();
-      return;
-    }
-
-    setErrors({});
-    setStepBannerError(null);
-    setCurrentStep((prev) => Math.min(prev + 1, FORM_STEPS.length - 1));
-    scrollToTop();
-  };
-
-  const handlePrevStep = () => {
-    setErrors({});
-    setStepBannerError(null);
-    setCurrentStep((prev) => Math.max(prev - 1, 0));
-    scrollToTop();
-  };
-
-  const handleTabJump = (targetStep: number) => {
-    if (submittedRecord) return;
-    setErrors({});
-    setStepBannerError(null);
-    setCurrentStep(targetStep);
-    scrollToTop();
-  };
-
   const handleResetDraft = () => {
     const fresh = createInitialApplicationData();
     setFormData(fresh);
@@ -163,7 +111,6 @@ export default function App() {
     setStepBannerError(null);
     setSubmitError(null);
     setSubmittedRecord(null);
-    setCurrentStep(0);
     setConfirmResetOpen(false);
     try {
       localStorage.removeItem(DRAFT_STORAGE_KEY);
@@ -178,29 +125,15 @@ export default function App() {
     const allErrors = validateAllSteps(formData);
     if (Object.keys(allErrors).length > 0) {
       setErrors(allErrors);
-      const firstErrorKey = Object.keys(allErrors)[0];
-      let targetStep = 0;
-      if (firstErrorKey.startsWith('work') || firstErrorKey.startsWith('education')) {
-        targetStep = 1;
-      } else if (
-        firstErrorKey.startsWith('nursing') ||
-        firstErrorKey.startsWith('emergency')
-      ) {
-        targetStep = 2;
-      } else if (
-        firstErrorKey.startsWith('doc.') ||
-        firstErrorKey === 'truthfulnessAccepted' ||
-        firstErrorKey === 'pdpaAccepted'
-      ) {
-        targetStep = 3;
-      }
-      setCurrentStep(targetStep);
       setStepBannerError(
-        `พบข้อมูลที่ยังกรอกไม่ครบถ้วน (${Object.keys(allErrors).length} รายการ) ระบบพาท่านกลับมาที่ส่วนที่ต้องแก้ไข`
+        `พบข้อมูลที่ยังกรอกไม่ครบถ้วนหรือเอกสารไม่ครบ (${Object.keys(allErrors).length} รายการ) กรุณาตรวจสอบและแก้ไขให้ครบถ้วน`
       );
       scrollToTop();
       return;
     }
+
+    setErrors({});
+    setStepBannerError(null);
 
     setIsSubmitting(true);
     try {
@@ -321,58 +254,10 @@ export default function App() {
                       </div>
                     )}
                   </div>
-
-                  {/* Interactive Step Tabs */}
-                  <div
-                    role="tablist"
-                    aria-label="ขั้นตอนการกรอกใบสมัคร"
-                    className="mt-4 flex gap-2 overflow-x-auto no-scrollbar pb-1 sm:mt-5 sm:grid sm:grid-cols-5 sm:overflow-visible sm:pb-0"
-                  >
-                    {FORM_STEPS.map((step) => {
-                      const isActive = currentStep === step.index;
-                      const isCompleted = step.index < currentStep;
-                      return (
-                        <button
-                          key={step.index}
-                          type="button"
-                          role="tab"
-                          aria-selected={isActive}
-                          onClick={() => handleTabJump(step.index)}
-                          className={`btn-lift flex min-h-[44px] shrink-0 items-center gap-2 rounded-xl px-3.5 py-2 text-left text-xs font-medium whitespace-nowrap cursor-pointer sm:shrink sm:px-3 ${
-                            isActive
-                              ? 'bg-teal-800 text-white shadow-sm'
-                              : isCompleted
-                              ? 'border border-teal-700/25 bg-teal-50/85 text-teal-950 hover:bg-white'
-                              : 'border border-teal-900/10 bg-white/70 text-teal-950 hover:bg-white'
-                          }`}
-                        >
-                          <span
-                            className={`font-mono tabular-nums text-[11px] font-semibold ${
-                              isActive ? 'text-teal-100' : 'text-teal-700'
-                            }`}
-                          >
-                            {step.code}
-                          </span>
-                          <span className="sm:truncate">{step.label}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-
-                  {/* Smooth Progress Bar */}
-                  <div
-                    aria-hidden="true"
-                    className="mt-3.5 h-1.5 w-full overflow-hidden rounded-full bg-teal-900/10"
-                  >
-                    <div
-                      className="h-full rounded-full bg-gradient-to-r from-teal-600 to-emerald-500 transition-all duration-300 ease-out"
-                      style={{ width: `${((currentStep + 1) / FORM_STEPS.length) * 100}%` }}
-                    />
-                  </div>
                 </div>
               )}
 
-              {/* Main Form Glass Container */}
+              {/* Main Single-Page Form Glass Container */}
               <div className="glass-panel rounded-3xl p-4 sm:p-8">
                 {stepBannerError && !submittedRecord && (
                   <div
@@ -383,112 +268,88 @@ export default function App() {
                   </div>
                 )}
 
-                <div key={currentStep} className="animate-step-enter">
+                {submittedRecord ? (
+                  <ReviewAndSubmit
+                    formData={formData}
+                    submittedRecord={submittedRecord}
+                    isSubmitting={isSubmitting}
+                    submitError={submitError}
+                    onJumpToStep={() => {}}
+                    onSubmitApplication={() => void handleSubmitApplication()}
+                    onStartNewApplication={handleResetDraft}
+                    onGoTrackStatus={(appId) => {
+                      setTrackInitialCode(appId);
+                      setActivePage('track');
+                      scrollToTop();
+                    }}
+                  />
+                ) : (
+                  <div className="space-y-10">
+                    {/* Section 1: ข้อมูลส่วนตัว */}
+                    <StepPersonalInfo
+                      personalInfo={formData.personalInfo}
+                      errors={errors}
+                      onChange={(personalInfo) =>
+                        setFormData((prev) => ({ ...prev, personalInfo }))
+                      }
+                    />
 
-              {currentStep === 0 && (
-                <StepPersonalInfo
-                  personalInfo={formData.personalInfo}
-                  errors={errors}
-                  onChange={(personalInfo) =>
-                    setFormData((prev) => ({ ...prev, personalInfo }))
-                  }
-                />
-              )}
+                    <div className="border-t border-teal-900/10" />
 
-              {currentStep === 1 && (
-                <StepWorkAndEducation
-                  hasNoWorkExperience={formData.hasNoWorkExperience}
-                  workExperiences={formData.workExperiences}
-                  educationBackground={formData.educationBackground}
-                  errors={errors}
-                  onChangeWorkToggle={(hasNoWorkExperience) =>
-                    setFormData((prev) => ({ ...prev, hasNoWorkExperience }))
-                  }
-                  onChangeWorkRows={(workExperiences) =>
-                    setFormData((prev) => ({ ...prev, workExperiences }))
-                  }
-                  onChangeEducationRows={(educationBackground) =>
-                    setFormData((prev) => ({ ...prev, educationBackground }))
-                  }
-                />
-              )}
+                    {/* Section 2: บุคคลที่สามารถติดต่อได้ในกรณีฉุกเฉิน */}
+                    <StepEmergencyContact
+                      emergencyContact={formData.emergencyContact}
+                      errors={errors}
+                      onChange={(emergencyContact) =>
+                        setFormData((prev) => ({ ...prev, emergencyContact }))
+                      }
+                    />
 
-              {currentStep === 2 && (
-                <StepNursingAndEmergency
-                  nursingQualification={formData.nursingQualification}
-                  emergencyContact={formData.emergencyContact}
-                  errors={errors}
-                  onChangeNursing={(nursingQualification) =>
-                    setFormData((prev) => ({ ...prev, nursingQualification }))
-                  }
-                  onChangeEmergency={(emergencyContact) =>
-                    setFormData((prev) => ({ ...prev, emergencyContact }))
-                  }
-                />
-              )}
+                    <div className="border-t border-teal-900/10" />
 
-              {currentStep === 3 && (
-                <StepDocuments
-                  documents={formData.documents}
-                  truthfulnessAccepted={formData.truthfulnessAccepted}
-                  pdpaAccepted={formData.pdpaAccepted}
-                  errors={errors}
-                  onChangeDocuments={(documents) =>
-                    setFormData((prev) => ({ ...prev, documents }))
-                  }
-                  onChangeConsent={(field, value) =>
-                    setFormData((prev) => ({ ...prev, [field]: value }))
-                  }
-                />
-              )}
+                    {/* Section 3: แนบเอกสารประกอบการสมัครออนไลน์ */}
+                    <StepDocuments
+                      documents={formData.documents}
+                      truthfulnessAccepted={formData.truthfulnessAccepted}
+                      pdpaAccepted={formData.pdpaAccepted}
+                      errors={errors}
+                      onChangeDocuments={(documents) =>
+                        setFormData((prev) => ({ ...prev, documents }))
+                      }
+                      onChangeConsent={(field, value) =>
+                        setFormData((prev) => ({ ...prev, [field]: value }))
+                      }
+                    />
 
-              {currentStep === 4 && (
-                <ReviewAndSubmit
-                  formData={formData}
-                  submittedRecord={submittedRecord}
-                  isSubmitting={isSubmitting}
-                  submitError={submitError}
-                  onJumpToStep={handleTabJump}
-                  onSubmitApplication={() => void handleSubmitApplication()}
-                  onStartNewApplication={handleResetDraft}
-                  onGoTrackStatus={(appId) => {
-                    setTrackInitialCode(appId);
-                    setActivePage('track');
-                    scrollToTop();
-                  }}
-                />
-              )}
-
-                </div>
-
-                {/* Stepper Footer Navigation */}
-                {!submittedRecord && currentStep < 4 && (
-                  <div className="no-print mt-8 border-t border-teal-900/10 pt-5">
-                    <div className="mb-3 text-center text-xs text-teal-900/70 tabular-nums sm:hidden">
-                      ขั้นตอนที่ {currentStep + 1} จาก {FORM_STEPS.length}
-                    </div>
-                    <div className="grid grid-cols-2 gap-2.5 sm:flex sm:items-center sm:justify-between">
-                      <button
-                        type="button"
-                        onClick={handlePrevStep}
-                        disabled={currentStep === 0}
-                        className="btn-lift group inline-flex min-h-[46px] items-center justify-center gap-2 rounded-xl border border-teal-900/15 bg-white/80 px-4 py-2.5 text-sm font-medium text-teal-950 hover:bg-white disabled:opacity-40 cursor-pointer"
+                    {submitError && (
+                      <div
+                        role="alert"
+                        className="animate-error-shake rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-800"
                       >
-                        <ArrowLeft className="h-4 w-4 transition-transform duration-150 group-hover:-translate-x-0.5" />
-                        <span>ย้อนกลับ</span>
-                      </button>
-
-                      <div className="hidden text-xs text-teal-900/70 tabular-nums sm:block">
-                        ขั้นตอนที่ {currentStep + 1} จาก {FORM_STEPS.length}
+                        {submitError}
                       </div>
+                    )}
+
+                    {/* Single-Page Submit Footer */}
+                    <div className="no-print flex flex-col gap-3 border-t border-teal-900/10 pt-6 sm:flex-row sm:items-center sm:justify-between">
+                      <p className="text-xs text-teal-900/75">
+                        กรุณาตรวจสอบข้อมูลส่วนตัวและเอกสารแนบให้ครบถ้วนก่อนกดยืนยันส่งใบสมัคร
+                      </p>
 
                       <button
                         type="button"
-                        onClick={handleNextStep}
-                        className="btn-lift group inline-flex min-h-[46px] items-center justify-center gap-2 rounded-xl bg-teal-800 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-teal-900 cursor-pointer"
+                        disabled={isSubmitting}
+                        onClick={() => void handleSubmitApplication()}
+                        className="btn-lift inline-flex min-h-[48px] w-full items-center justify-center gap-2 rounded-xl bg-teal-800 px-7 py-3 text-base font-semibold text-white shadow-md shadow-teal-950/15 hover:bg-teal-900 disabled:opacity-60 cursor-pointer sm:w-auto shrink-0"
                       >
-                        <span>บันทึกและถัดไป</span>
-                        <ArrowRight className="h-4 w-4 transition-transform duration-150 group-hover:translate-x-0.5" />
+                        {isSubmitting ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Send className="h-4 w-4" />
+                        )}
+                        <span>
+                          {isSubmitting ? 'กำลังบันทึกและส่งใบสมัคร...' : 'ยืนยันส่งใบสมัครออนไลน์'}
+                        </span>
                       </button>
                     </div>
                   </div>

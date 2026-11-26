@@ -136,29 +136,29 @@ const FIELD_LABELS: Record<keyof ContractFields, string> = {
 
 function buildDefaultFieldStyles(): FieldStylesMap {
   return {
-    location: { bold: false, sizePt: 14 },
-    contractDate: { bold: false, sizePt: 14 },
-    companyName: { bold: false, sizePt: 14 },
-    authorizedPerson: { bold: false, sizePt: 14 },
-    authorizedPosition: { bold: false, sizePt: 14 },
-    contractorName: { bold: false, sizePt: 14 },
-    contractorIdCard: { bold: false, sizePt: 14 },
-    contractorAddress: { bold: false, sizePt: 14 },
-    workplaceAddress: { bold: false, sizePt: 14 },
-    startDate: { bold: false, sizePt: 14 },
-    endDate: { bold: false, sizePt: 14 },
-    morningTime: { bold: false, sizePt: 14 },
-    morningRate: { bold: false, sizePt: 14 },
-    morningRateText: { bold: false, sizePt: 14 },
-    afternoonTime: { bold: false, sizePt: 14 },
-    afternoonRate: { bold: false, sizePt: 14 },
-    afternoonRateText: { bold: false, sizePt: 14 },
-    nightTime: { bold: false, sizePt: 14 },
-    nightRate: { bold: false, sizePt: 14 },
-    nightRateText: { bold: false, sizePt: 14 },
-    payDay: { bold: false, sizePt: 14 },
-    witness1: { bold: false, sizePt: 14 },
-    witness2: { bold: false, sizePt: 14 },
+    location: { bold: false, sizePt: 16 },
+    contractDate: { bold: false, sizePt: 16 },
+    companyName: { bold: false, sizePt: 16 },
+    authorizedPerson: { bold: false, sizePt: 16 },
+    authorizedPosition: { bold: false, sizePt: 16 },
+    contractorName: { bold: false, sizePt: 16 },
+    contractorIdCard: { bold: false, sizePt: 16 },
+    contractorAddress: { bold: false, sizePt: 16 },
+    workplaceAddress: { bold: false, sizePt: 16 },
+    startDate: { bold: false, sizePt: 16 },
+    endDate: { bold: false, sizePt: 16 },
+    morningTime: { bold: false, sizePt: 16 },
+    morningRate: { bold: false, sizePt: 16 },
+    morningRateText: { bold: false, sizePt: 16 },
+    afternoonTime: { bold: false, sizePt: 16 },
+    afternoonRate: { bold: false, sizePt: 16 },
+    afternoonRateText: { bold: false, sizePt: 16 },
+    nightTime: { bold: false, sizePt: 16 },
+    nightRate: { bold: false, sizePt: 16 },
+    nightRateText: { bold: false, sizePt: 16 },
+    payDay: { bold: false, sizePt: 16 },
+    witness1: { bold: false, sizePt: 16 },
+    witness2: { bold: false, sizePt: 16 },
   };
 }
 
@@ -176,7 +176,7 @@ function EditableSpan({
   styleConfig?: FieldTextStyle;
 }) {
   const isBold = styleConfig?.bold ?? false;
-  const sizeClass = SIZE_CLASS_MAP[styleConfig?.sizePt ?? 14] || 'text-[14pt]';
+  const sizeClass = SIZE_CLASS_MAP[styleConfig?.sizePt ?? 16] || 'text-[16pt]';
   return (
     <span
       className={`rounded bg-amber-100/80 px-1 py-0.5 text-slate-950 print:bg-transparent print:px-0 print:py-0 ${sizeClass} ${
@@ -232,9 +232,9 @@ function FieldStyleButtons({
 
 function ContractDocumentSet({ label, fields, fieldStyles }: ContractDocumentSetProps) {
   return (
-    <article className="font-contract text-[14pt] leading-[1.45] text-black">
+    <article className="font-contract text-[16pt] leading-[1.45] text-black">
       {/* Top-right stamp */}
-      <div className="flex justify-end text-[15pt] font-bold">{label}</div>
+      <div className="flex justify-end text-[16pt] font-bold">{label}</div>
 
       {/* Title */}
       <h2 className="mt-1 text-center text-[16pt] font-bold">
@@ -242,7 +242,7 @@ function ContractDocumentSet({ label, fields, fieldStyles }: ContractDocumentSet
       </h2>
 
       {/* Location & Date */}
-      <div className="mt-2 text-[14pt]">
+      <div className="mt-2 text-[16pt]">
         <p className="text-right">
           ทำ ที่ <EditableSpan value={fields.location} styleConfig={fieldStyles.location} />
         </p>
@@ -408,7 +408,7 @@ function ContractDocumentSet({ label, fields, fieldStyles }: ContractDocumentSet
           ทั้งสองฝ่ายได้อ่านและเข้าใจข้อความของสัญญาฉบับนี้เป็นอย่างดีแล้ว จึงลงลายมือชื่อไว้เป็นหลักฐาน
         </p>
 
-        <div className="mt-12 grid grid-cols-2 gap-x-8 gap-y-12 text-[14pt]">
+        <div className="mt-12 grid grid-cols-2 gap-x-8 gap-y-12 text-[16pt]">
           <div className="text-center">
             <p>ลงชื่อ..........................................ผู้รับมอบอำนาจของบริษัทฯ</p>
             <p className="mt-1">
@@ -722,7 +722,7 @@ export function ContractPrintModal({ open, applicant, onClose }: ContractPrintMo
       <div className="flex-1 overflow-y-auto p-3 sm:p-6 print:overflow-visible print:p-0">
         <div className="mx-auto grid max-w-7xl grid-cols-1 gap-6 lg:grid-cols-12 print:block">
           {/* Left Editable Controls */}
-          <aside className="no-print glass-panel h-fit rounded-2xl bg-white/95 p-4 sm:p-5 lg:col-span-4 lg:sticky lg:top-0">
+          <aside className="no-print glass-panel h-fit rounded-2xl bg-white/95 p-4 sm:p-5 lg:col-span-4 lg:sticky lg:top-0 lg:max-h-[calc(100vh-7.5rem)] lg:overflow-y-auto">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <h3 className="font-display text-sm font-bold text-teal-950">
                 ตำแหน่งที่สามารถแก้ไขได้

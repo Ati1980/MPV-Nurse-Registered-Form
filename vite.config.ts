@@ -7,6 +7,7 @@ import {defineConfig} from 'vite';
 export default defineConfig(() => {
   const rootDir = import.meta.dirname;
   return {
+    envPrefix: ['VITE_', 'NEXT_PUBLIC_'],
     build: {
       chunkSizeWarningLimit: 1500,
     },

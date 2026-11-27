@@ -15,7 +15,11 @@ import type {
   SubmittedApplicationRecord,
   ValidationErrors,
 } from './types/application.ts';
-import { submitApplicationApi } from './utils/apiClient.ts';
+import {
+  clearStoredHrPin,
+  getStoredHrPin,
+  submitApplicationApi,
+} from './utils/apiClient.ts';
 import {
   createInitialApplicationData,
   DRAFT_STORAGE_KEY,
@@ -39,9 +43,10 @@ function readPersistedHrUnlocked(): boolean {
     const expiresAt = Number(raw);
     if (!Number.isFinite(expiresAt) || expiresAt <= Date.now()) {
       localStorage.removeItem(HR_UNLOCK_STORAGE_KEY);
+      clearStoredHrPin();
       return false;
     }
-    return true;
+    return Boolean(getStoredHrPin());
   } catch {
     return false;
   }
@@ -53,6 +58,7 @@ function writePersistedHrUnlocked(unlocked: boolean): void {
       localStorage.setItem(HR_UNLOCK_STORAGE_KEY, String(Date.now() + HR_UNLOCK_TTL_MS));
     } else {
       localStorage.removeItem(HR_UNLOCK_STORAGE_KEY);
+      clearStoredHrPin();
     }
   } catch {
     // Ignore storage error
@@ -283,7 +289,7 @@ export default function App() {
         try {
           const parsed = JSON.parse(err.message) as { error?: string };
           if (parsed?.error) {
-            friendly = 'ไม่สามารถบันทึกใบสมัครไปยังฐานข้อมูล Firebase ได้ กรุณาตรวจสอบข้อมูลและลองใหม่อีกครั้ง';
+            friendly = 'ไม่สามารถบันทึกใบสมัครไปยังฐานข้อมูล Supabase ได้ กรุณาตรวจสอบข้อมูลและลองใหม่อีกครั้ง';
           } else {
             friendly = err.message;
           }

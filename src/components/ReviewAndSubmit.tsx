@@ -1,3 +1,4 @@
+import { motion } from 'motion/react';
 import { CheckCircle2, Edit3, Loader2, Printer, RotateCcw } from 'lucide-react';
 import type { ApplicationFormData, SubmittedApplicationRecord } from '../types/application.ts';
 import { formatThaiDateTime } from '../utils/applicationHelpers.ts';
@@ -26,11 +27,23 @@ export function ReviewAndSubmit({
 }: ReviewAndSubmitProps) {
   if (submittedRecord) {
     return (
-      <div className="animate-fade-scale space-y-6">
+      <motion.div
+        initial={{ opacity: 0, y: 12, scale: 0.985 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+        className="space-y-6 print:!transform-none print:!opacity-100"
+      >
         <div className="no-print rounded-2xl border border-emerald-200 bg-emerald-50/90 p-6">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div className="flex items-start gap-3.5">
-              <CheckCircle2 className="animate-pop-check mt-0.5 h-7 w-7 shrink-0 text-emerald-700" />
+              <motion.div
+                initial={{ scale: 0.4, rotate: -14, opacity: 0 }}
+                animate={{ scale: 1, rotate: 0, opacity: 1 }}
+                transition={{ type: 'spring', stiffness: 380, damping: 20, delay: 0.08 }}
+                className="mt-0.5 shrink-0"
+              >
+                <CheckCircle2 className="h-7 w-7 text-emerald-700" />
+              </motion.div>
               <div>
                 <h2 className="font-display text-xl font-bold text-emerald-950">
                   ส่งใบสมัครพยาบาลวิชาชีพสำเร็จเรียบร้อยแล้ว
@@ -90,7 +103,7 @@ export function ReviewAndSubmit({
           applicationId={submittedRecord.applicationId}
           submittedAt={submittedRecord.submittedAt}
         />
-      </div>
+      </motion.div>
     );
   }
 

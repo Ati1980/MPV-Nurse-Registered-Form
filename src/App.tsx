@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { AnimatePresence, MotionConfig, motion } from 'motion/react';
 import { Loader2, RotateCcw, Send } from 'lucide-react';
 import { HeroOverview } from './components/HeroOverview.tsx';
 import { HrPinModal } from './components/HrPinModal.tsx';
@@ -297,7 +298,8 @@ export default function App() {
   };
 
   return (
-    <div className="relative isolate min-h-screen flex flex-col overflow-x-clip print:min-h-0 print:block print:overflow-visible">
+    <MotionConfig reducedMotion="user">
+      <div className="relative isolate min-h-screen flex flex-col overflow-x-clip print:min-h-0 print:block print:overflow-visible">
       {/* Fixed Full-Bleed Background Image (nurse form bg.jpg) across all pages */}
       <div
         aria-hidden="true"
@@ -328,75 +330,108 @@ export default function App() {
 
       {/* Main Content */}
       <main className="relative z-10 flex-1">
-        <div key={activePage} className="animate-page-enter">
-          {activePage === 'overview' && (
-            <HeroOverview
-              hasSavedDraft={hasSavedDraft}
-              onStartApply={handleStartApply}
-              onTrackStatus={() => {
-                setActivePage('track');
-                scrollToTop();
-              }}
-            />
-          )}
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={activePage}
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            transition={{ duration: 0.24, ease: [0.16, 1, 0.3, 1] }}
+            className="print:!transform-none print:!opacity-100"
+          >
+            {activePage === 'overview' && (
+              <HeroOverview
+                hasSavedDraft={hasSavedDraft}
+                onStartApply={handleStartApply}
+                onTrackStatus={() => {
+                  setActivePage('track');
+                  scrollToTop();
+                }}
+              />
+            )}
 
-          {activePage === 'apply' && (
-            <div className="mx-auto max-w-5xl px-3.5 py-4 sm:px-6 sm:py-10">
-              {/* Form Header & Stepper */}
-              {!submittedRecord && (
-                <div className="no-print glass-panel mb-5 rounded-3xl p-4 sm:mb-6 sm:p-6">
-                  <div className="flex flex-wrap items-start justify-between gap-3 sm:gap-4">
-                    <div>
-                      <p className="text-xs font-medium text-teal-800">
-                        โรงงานน้ำตาลมิตรภูเวียง <span aria-hidden="true">·</span> ประจำปี 2570
-                      </p>
-                      <h1 className="font-display mt-1 text-base font-bold text-teal-950 sm:text-2xl">
-                        ฟอร์มรับสมัครพยาบาลวิชาชีพ โรงงานน้ำตาลมิตรภูเวียง ประจำปี 2570
-                      </h1>
-                    </div>
-
-                    {!confirmResetOpen ? (
-                      <button
-                        type="button"
-                        onClick={() => setConfirmResetOpen(true)}
-                        className="btn-lift inline-flex min-h-[38px] items-center gap-1.5 rounded-xl border border-teal-900/15 bg-white/75 px-3 py-1.5 text-xs font-medium text-teal-900 hover:bg-white cursor-pointer"
-                      >
-                        <RotateCcw className="h-3.5 w-3.5" />
-                        <span>ล้างแบบฟอร์ม</span>
-                      </button>
-                    ) : (
-                      <div className="animate-fade-scale flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs">
-                        <span className="font-medium text-rose-900">ยืนยันล้างข้อมูลทั้งหมด?</span>
-                        <button
-                          type="button"
-                          onClick={handleResetDraft}
-                          className="btn-lift rounded-lg bg-rose-700 px-2.5 py-1 font-semibold text-white hover:bg-rose-800 cursor-pointer"
-                        >
-                          ยืนยัน
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setConfirmResetOpen(false)}
-                          className="btn-lift rounded-lg bg-white px-2.5 py-1 font-medium text-slate-700 hover:bg-slate-100 cursor-pointer"
-                        >
-                          ยกเลิก
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {/* Main Single-Page Form Glass Container */}
-              <div className="glass-panel rounded-3xl p-4 sm:p-8">
-                {stepBannerError && !submittedRecord && (
-                  <div
-                    role="alert"
-                    className="no-print animate-error-shake mb-6 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-800"
+            {activePage === 'apply' && (
+              <div className="mx-auto max-w-5xl px-3.5 py-4 sm:px-6 sm:py-10">
+                {/* Form Header & Stepper */}
+                {!submittedRecord && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+                    className="no-print glass-panel mb-5 rounded-3xl p-4 sm:mb-6 sm:p-6"
                   >
-                    {stepBannerError}
-                  </div>
+                    <div className="flex flex-wrap items-start justify-between gap-3 sm:gap-4">
+                      <div>
+                        <p className="text-xs font-medium text-teal-800">
+                          โรงงานน้ำตาลมิตรภูเวียง <span aria-hidden="true">·</span> ประจำปี 2570
+                        </p>
+                        <h1 className="font-display mt-1 text-base font-bold text-teal-950 sm:text-2xl">
+                          ฟอร์มรับสมัครพยาบาลวิชาชีพ โรงงานน้ำตาลมิตรภูเวียง ประจำปี 2570
+                        </h1>
+                      </div>
+
+                      <AnimatePresence mode="wait">
+                        {!confirmResetOpen ? (
+                          <motion.button
+                            key="reset-btn"
+                            type="button"
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.95 }}
+                            transition={{ duration: 0.16 }}
+                            onClick={() => setConfirmResetOpen(true)}
+                            className="btn-lift inline-flex min-h-[38px] items-center gap-1.5 rounded-xl border border-teal-900/15 bg-white/75 px-3 py-1.5 text-xs font-medium text-teal-900 hover:bg-white cursor-pointer"
+                          >
+                            <RotateCcw className="h-3.5 w-3.5" />
+                            <span>ล้างแบบฟอร์ม</span>
+                          </motion.button>
+                        ) : (
+                          <motion.div
+                            key="reset-confirm"
+                            initial={{ opacity: 0, scale: 0.94 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.94 }}
+                            transition={{ duration: 0.16 }}
+                            className="flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs"
+                          >
+                            <span className="font-medium text-rose-900">ยืนยันล้างข้อมูลทั้งหมด?</span>
+                            <button
+                              type="button"
+                              onClick={handleResetDraft}
+                              className="btn-lift rounded-lg bg-rose-700 px-2.5 py-1 font-semibold text-white hover:bg-rose-800 cursor-pointer"
+                            >
+                              ยืนยัน
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setConfirmResetOpen(false)}
+                              className="btn-lift rounded-lg bg-white px-2.5 py-1 font-medium text-slate-700 hover:bg-slate-100 cursor-pointer"
+                            >
+                              ยกเลิก
+                            </button>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
+                  </motion.div>
                 )}
+
+                {/* Main Single-Page Form Glass Container */}
+                <div className="glass-panel rounded-3xl p-4 sm:p-8 print:!transform-none">
+                  <AnimatePresence>
+                    {stepBannerError && !submittedRecord && (
+                      <motion.div
+                        role="alert"
+                        initial={{ opacity: 0, y: -8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -6 }}
+                        transition={{ duration: 0.2 }}
+                        className="no-print animate-error-shake mb-6 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-800"
+                      >
+                        {stepBannerError}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
 
                 {submittedRecord ? (
                   <ReviewAndSubmit
@@ -488,24 +523,25 @@ export default function App() {
             </div>
           )}
 
-          {activePage === 'track' && <StatusTrackerView initialCode={trackInitialCode} />}
+            {activePage === 'track' && <StatusTrackerView initialCode={trackInitialCode} />}
 
-          {activePage === 'hr' && hrUnlocked && (
-            <HrReviewView
-              onLogout={() => {
-                writePersistedHrUnlocked(false);
-                try {
-                  sessionStorage.removeItem('mpv_hr_selected_id_v1');
-                } catch {
-                  // Ignore storage error
-                }
-                setHrUnlocked(false);
-                setActivePage('overview');
-                scrollToTop();
-              }}
-            />
-          )}
-        </div>
+            {activePage === 'hr' && hrUnlocked && (
+              <HrReviewView
+                onLogout={() => {
+                  writePersistedHrUnlocked(false);
+                  try {
+                    sessionStorage.removeItem('mpv_hr_selected_id_v1');
+                  } catch {
+                    // Ignore storage error
+                  }
+                  setHrUnlocked(false);
+                  setActivePage('overview');
+                  scrollToTop();
+                }}
+              />
+            )}
+          </motion.div>
+        </AnimatePresence>
       </main>
 
       {/* HR 4-Digit Phone Keypad PIN Modal */}
@@ -530,6 +566,7 @@ export default function App() {
           <p>ระบบเปิดรับสมัครพยาบาลวิชาชีพ ประจำปี 2570</p>
         </div>
       </footer>
-    </div>
+      </div>
+    </MotionConfig>
   );
 }

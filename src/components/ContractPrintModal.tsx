@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { AnimatePresence, motion } from 'motion/react';
 import { FileDown, Loader2, Printer, RotateCcw, X } from 'lucide-react';
 import type { DocumentSlotKey, SubmittedApplicationRecord } from '../types/application.ts';
 import { resolveApplicationFileApi } from '../utils/apiClient.ts';
@@ -632,8 +633,6 @@ export function ContractPrintModal({ open, applicant, onClose }: ContractPrintMo
     };
   }, [open, onClose]);
 
-  if (!open) return null;
-
   const loadingAttachments =
     includeAttachments && attachments.some((item) => item.status === 'loading');
 
@@ -708,12 +707,18 @@ export function ContractPrintModal({ open, applicant, onClose }: ContractPrintMo
   };
 
   return createPortal(
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="contract-modal-title"
-      className="fixed inset-0 z-50 flex flex-col bg-teal-950/60 backdrop-blur-sm print:static print:inset-auto print:block print:h-auto print:overflow-visible print:bg-white print:p-0 print:backdrop-blur-none"
-    >
+    <AnimatePresence>
+      {open && (
+        <motion.div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="contract-modal-title"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.2 }}
+          className="fixed inset-0 z-50 flex flex-col bg-teal-950/60 backdrop-blur-sm print:static print:inset-auto print:block print:h-auto print:overflow-visible print:bg-white print:p-0 print:backdrop-blur-none print:!opacity-100"
+        >
       {/* Top Action Bar */}
       <div className="no-print flex flex-wrap items-center justify-between gap-3 border-b border-white/20 bg-white/95 px-4 py-3 shadow-sm sm:px-6">
         <div>
@@ -1273,7 +1278,9 @@ export function ContractPrintModal({ open, applicant, onClose }: ContractPrintMo
           </div>
         </div>
       </div>
-    </div>,
+        </motion.div>
+      )}
+    </AnimatePresence>,
     document.body
   );
 }

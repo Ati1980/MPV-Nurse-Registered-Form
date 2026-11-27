@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react';
+import { AnimatePresence, motion } from 'motion/react';
 import { Printer, Search } from 'lucide-react';
 import {
   trackApplicationApi,
@@ -93,78 +94,96 @@ export function StatusTrackerView({ initialCode = '' }: StatusTrackerViewProps) 
           </div>
 
           <div className="flex items-end sm:col-span-3">
-            <button
+            <motion.button
               type="submit"
               disabled={loading}
-              className="btn-lift inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-xl bg-teal-800 px-5 py-2.5 text-sm font-semibold text-white hover:bg-teal-900 disabled:opacity-60 cursor-pointer"
+              whileHover={{ y: -1.5 }}
+              whileTap={{ scale: 0.98 }}
+              transition={{ duration: 0.16 }}
+              className="inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-xl bg-teal-800 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-teal-900 disabled:opacity-60 cursor-pointer"
             >
               <Search className={`h-4 w-4 ${loading ? 'animate-pulse' : ''}`} />
               <span>{loading ? 'กำลังค้นหา...' : 'ตรวจสอบสถานะ'}</span>
-            </button>
+            </motion.button>
           </div>
         </form>
 
-        {error && (
-          <div
-            role="alert"
-            className="animate-error-shake mt-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-800"
-          >
-            {error}
-          </div>
-        )}
+        <AnimatePresence>
+          {error && (
+            <motion.div
+              role="alert"
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -6 }}
+              transition={{ duration: 0.2 }}
+              className="animate-error-shake mt-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-800"
+            >
+              {error}
+            </motion.div>
+          )}
+        </AnimatePresence>
       </section>
 
-      {result && (
-        <div className="animate-fade-scale mt-6 space-y-6">
-          <div className="no-print glass-panel rounded-3xl p-6">
-            <div className="flex flex-wrap items-center justify-between gap-4">
-              <div>
-                <p className="text-xs text-teal-800">สถานะปัจจุบันของใบสมัคร {result.applicationId}</p>
-                {(() => {
-                  const statusStyle = getApplicationStatusStyle(result.status);
-                  return (
-                    <div className="mt-1.5">
-                      <span
-                        className={`inline-flex items-center gap-2 rounded-xl px-3.5 py-1.5 font-display text-base font-bold ${statusStyle.badge}`}
-                      >
-                        <span className={`h-2.5 w-2.5 rounded-full ${statusStyle.dot}`} />
-                        <span>{result.status}</span>
-                      </span>
-                    </div>
-                  );
-                })()}
-                <p className="mt-2 text-xs text-teal-900/75 tabular-nums">
-                  ยื่นสมัครเมื่อ {formatThaiDateTime(result.submittedAt)}
-                </p>
-                {result.hrNote && (
-                  <p className="mt-2 rounded-xl bg-teal-900/5 px-3 py-2 text-sm text-teal-950">
-                    หมายเหตุจากเจ้าหน้าที่ HR: {result.hrNote}
+      <AnimatePresence mode="wait">
+        {result && (
+          <motion.div
+            key={result.applicationId}
+            initial={{ opacity: 0, y: 12, scale: 0.985 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -8 }}
+            transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
+            className="mt-6 space-y-6 print:!transform-none print:!opacity-100"
+          >
+            <div className="no-print glass-panel rounded-3xl p-6">
+              <div className="flex flex-wrap items-center justify-between gap-4">
+                <div>
+                  <p className="text-xs text-teal-800">สถานะปัจจุบันของใบสมัคร {result.applicationId}</p>
+                  {(() => {
+                    const statusStyle = getApplicationStatusStyle(result.status);
+                    return (
+                      <div className="mt-1.5">
+                        <span
+                          className={`inline-flex items-center gap-2 rounded-xl px-3.5 py-1.5 font-display text-base font-bold ${statusStyle.badge}`}
+                        >
+                          <span className={`h-2.5 w-2.5 rounded-full ${statusStyle.dot}`} />
+                          <span>{result.status}</span>
+                        </span>
+                      </div>
+                    );
+                  })()}
+                  <p className="mt-2 text-xs text-teal-900/75 tabular-nums">
+                    ยื่นสมัครเมื่อ {formatThaiDateTime(result.submittedAt)}
                   </p>
+                  {result.hrNote && (
+                    <p className="mt-2 rounded-xl bg-teal-900/5 px-3 py-2 text-sm text-teal-950">
+                      หมายเหตุจากเจ้าหน้าที่ HR: {result.hrNote}
+                    </p>
+                  )}
+                </div>
+
+                {!result.statusOnly && (
+                  <button
+                    type="button"
+                    onClick={() => window.print()}
+                    className="btn-lift inline-flex min-h-[44px] items-center gap-2 rounded-xl bg-teal-800 px-5 py-2.5 text-sm font-medium text-white hover:bg-teal-900 cursor-pointer"
+                  >
+                    <Printer className="h-4 w-4" />
+                    <span>พิมพ์ใบสมัคร</span>
+                  </button>
                 )}
               </div>
-
-              {!result.statusOnly && (
-                <button
-                  type="button"
-                  onClick={() => window.print()}
-                  className="btn-lift inline-flex min-h-[44px] items-center gap-2 rounded-xl bg-teal-800 px-5 py-2.5 text-sm font-medium text-white hover:bg-teal-900 cursor-pointer"
-                >
-                  <Printer className="h-4 w-4" />
-                  <span>พิมพ์ใบสมัคร</span>
-                </button>
-              )}
             </div>
-          </div>
 
-          {!result.statusOnly && (
-            <PrintableApplicationSheet
-              data={result}
-              applicationId={result.applicationId}
-              submittedAt={result.submittedAt}
-            />
-          )}
-        </div>
-      )}
+            {!result.statusOnly && (
+              <PrintableApplicationSheet
+                data={result}
+                applicationId={result.applicationId}
+                submittedAt={result.submittedAt}
+              />
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

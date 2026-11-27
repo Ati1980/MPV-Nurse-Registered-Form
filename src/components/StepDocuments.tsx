@@ -1,4 +1,5 @@
 import { useEffect, useState, type ChangeEvent, type DragEvent } from 'react';
+import { AnimatePresence, motion } from 'motion/react';
 import { Eye, FileText, Loader2, Trash2, UploadCloud, X } from 'lucide-react';
 import type {
   DocumentSlotKey,
@@ -207,22 +208,28 @@ export function StepDocuments({
         </p>
       </div>
 
-      {uploadAlert && (
-        <div
-          role="alert"
-          className="animate-error-shake flex items-center justify-between gap-3 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-800"
-        >
-          <span>{uploadAlert}</span>
-          <button
-            type="button"
-            onClick={() => setUploadAlert(null)}
-            className="min-h-[32px] min-w-[32px] rounded-lg p-1 hover:bg-rose-100 cursor-pointer"
-            aria-label="ปิดการแจ้งเตือน"
+      <AnimatePresence>
+        {uploadAlert && (
+          <motion.div
+            role="alert"
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -6 }}
+            transition={{ duration: 0.2 }}
+            className="animate-error-shake flex items-center justify-between gap-3 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-800"
           >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-      )}
+            <span>{uploadAlert}</span>
+            <button
+              type="button"
+              onClick={() => setUploadAlert(null)}
+              className="min-h-[32px] min-w-[32px] rounded-lg p-1 hover:bg-rose-100 cursor-pointer"
+              aria-label="ปิดการแจ้งเตือน"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         {DOCUMENT_SLOTS.map((slot) => {
@@ -264,58 +271,65 @@ export function StepDocuments({
                 {/* Attached Files List */}
                 {slotDocs.length > 0 && (
                   <ul className="mt-3 space-y-2">
-                    {slotDocs.map((doc) => {
-                      const isImage = doc.mimeType.startsWith('image/');
-                      const previewSrc = doc.dataUrl || doc.fileUrl;
-                      return (
-                        <li
-                          key={doc.id}
-                          className="animate-fade-scale flex items-center justify-between gap-2.5 rounded-xl border border-teal-900/10 bg-white px-3 py-2"
-                        >
-                          <div className="flex min-w-0 items-center gap-2.5">
-                            {isImage && previewSrc ? (
-                              <img
-                                src={previewSrc}
-                                alt={doc.fileName}
-                                referrerPolicy="no-referrer"
-                                className="h-10 w-10 shrink-0 rounded-lg object-cover border border-teal-900/10"
-                              />
-                            ) : (
-                              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-teal-900/5 text-teal-800">
-                                <FileText className="h-5 w-5" />
+                    <AnimatePresence initial={false}>
+                      {slotDocs.map((doc) => {
+                        const isImage = doc.mimeType.startsWith('image/');
+                        const previewSrc = doc.dataUrl || doc.fileUrl;
+                        return (
+                          <motion.li
+                            key={doc.id}
+                            layout
+                            initial={{ opacity: 0, scale: 0.95, y: 6 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.94, x: -12 }}
+                            transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+                            className="flex items-center justify-between gap-2.5 rounded-xl border border-teal-900/10 bg-white px-3 py-2"
+                          >
+                            <div className="flex min-w-0 items-center gap-2.5">
+                              {isImage && previewSrc ? (
+                                <img
+                                  src={previewSrc}
+                                  alt={doc.fileName}
+                                  referrerPolicy="no-referrer"
+                                  className="h-10 w-10 shrink-0 rounded-lg object-cover border border-teal-900/10"
+                                />
+                              ) : (
+                                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-teal-900/5 text-teal-800">
+                                  <FileText className="h-5 w-5" />
+                                </div>
+                              )}
+                              <div className="min-w-0">
+                                <p className="truncate text-xs font-semibold text-teal-950">
+                                  {doc.fileName}
+                                </p>
+                                <p className="text-[11px] text-teal-900/65 tabular-nums">
+                                  {formatBytes(doc.sizeBytes)}
+                                </p>
                               </div>
-                            )}
-                            <div className="min-w-0">
-                              <p className="truncate text-xs font-semibold text-teal-950">
-                                {doc.fileName}
-                              </p>
-                              <p className="text-[11px] text-teal-900/65 tabular-nums">
-                                {formatBytes(doc.sizeBytes)}
-                              </p>
                             </div>
-                          </div>
 
-                          <div className="flex items-center gap-1 shrink-0">
-                            <button
-                              type="button"
-                              onClick={() => setPreviewDoc(doc)}
-                              aria-label={`ดูตัวอย่าง ${doc.fileName}`}
-                              className="inline-flex min-h-[36px] min-w-[36px] items-center justify-center rounded-lg text-teal-800 hover:bg-teal-900/5 cursor-pointer"
-                            >
-                              <Eye className="h-4 w-4" />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleRemoveDoc(doc.id)}
-                              aria-label={`ลบ ${doc.fileName}`}
-                              className="inline-flex min-h-[36px] min-w-[36px] items-center justify-center rounded-lg text-rose-700 hover:bg-rose-50 cursor-pointer"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </button>
-                          </div>
-                        </li>
-                      );
-                    })}
+                            <div className="flex items-center gap-1 shrink-0">
+                              <button
+                                type="button"
+                                onClick={() => setPreviewDoc(doc)}
+                                aria-label={`ดูตัวอย่าง ${doc.fileName}`}
+                                className="inline-flex min-h-[36px] min-w-[36px] items-center justify-center rounded-lg text-teal-800 transition-colors hover:bg-teal-900/5 cursor-pointer"
+                              >
+                                <Eye className="h-4 w-4" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveDoc(doc.id)}
+                                aria-label={`ลบ ${doc.fileName}`}
+                                className="inline-flex min-h-[36px] min-w-[36px] items-center justify-center rounded-lg text-rose-700 transition-colors hover:bg-rose-50 cursor-pointer"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            </div>
+                          </motion.li>
+                        );
+                      })}
+                    </AnimatePresence>
                   </ul>
                 )}
               </div>
@@ -409,69 +423,86 @@ export function StepDocuments({
       </div>
 
       {/* Preview Modal */}
-      {previewDoc && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-label={`ตัวอย่างเอกสาร ${previewDoc.fileName}`}
-          className="fixed inset-0 z-50 flex items-center justify-center bg-teal-950/60 p-4 backdrop-blur-sm"
-        >
-          <div className="animate-fade-scale flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl">
-            <div className="flex items-center justify-between border-b border-teal-900/10 px-5 py-3.5">
-              <div className="min-w-0">
-                <p className="truncate text-sm font-semibold text-teal-950">{previewDoc.fileName}</p>
-                <p className="text-xs text-teal-900/65">{previewDoc.slotLabel}</p>
+      <AnimatePresence>
+        {previewDoc && (
+          <motion.div
+            role="dialog"
+            aria-modal="true"
+            aria-label={`ตัวอย่างเอกสาร ${previewDoc.fileName}`}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.18 }}
+            onClick={(e) => {
+              if (e.target === e.currentTarget) {
+                setPreviewDoc(null);
+              }
+            }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-teal-950/60 p-4 backdrop-blur-sm"
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 12 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.96, y: 8 }}
+              transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+              className="flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl"
+            >
+              <div className="flex items-center justify-between border-b border-teal-900/10 px-5 py-3.5">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold text-teal-950">{previewDoc.fileName}</p>
+                  <p className="text-xs text-teal-900/65">{previewDoc.slotLabel}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setPreviewDoc(null)}
+                  aria-label="ปิดหน้าต่างตัวอย่าง"
+                  className="inline-flex min-h-[40px] min-w-[40px] items-center justify-center rounded-xl text-teal-900 transition-colors hover:bg-teal-900/5 cursor-pointer"
+                >
+                  <X className="h-5 w-5" />
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={() => setPreviewDoc(null)}
-                aria-label="ปิดหน้าต่างตัวอย่าง"
-                className="inline-flex min-h-[40px] min-w-[40px] items-center justify-center rounded-xl text-teal-900 hover:bg-teal-900/5 cursor-pointer"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-            <div className="flex flex-1 flex-col items-center overflow-auto bg-slate-100 p-4">
-              {previewDoc.mimeType.startsWith('image/') ? (
-                <img
-                  src={previewDoc.dataUrl || previewDoc.fileUrl}
-                  alt={previewDoc.fileName}
-                  referrerPolicy="no-referrer"
-                  className="my-auto max-h-[72vh] w-auto rounded-lg object-contain shadow"
-                />
-              ) : previewPdfLoading ? (
-                <div className="my-auto flex flex-col items-center gap-2 py-12 text-sm text-teal-900/75">
-                  <Loader2 className="h-6 w-6 animate-spin text-teal-700" />
-                  <span>กำลังเปิดไฟล์ PDF...</span>
-                </div>
-              ) : previewPdfPages.length > 0 ? (
-                <div className="flex w-full flex-col items-center gap-4">
-                  {previewPdfPages.map((pageUrl, pageIdx) => (
-                    <div key={pageIdx} className="w-full max-w-2xl">
-                      {previewPdfPages.length > 1 && (
-                        <p className="mb-1 text-center text-xs font-medium text-teal-900/70">
-                          หน้า {pageIdx + 1} / {previewPdfPages.length}
-                        </p>
-                      )}
-                      <img
-                        src={pageUrl}
-                        alt={`${previewDoc.fileName} หน้า ${pageIdx + 1}`}
-                        className="mx-auto w-full rounded-lg border border-slate-200 bg-white shadow"
-                      />
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <iframe
-                  src={previewDoc.dataUrl || previewDoc.fileUrl}
-                  title={previewDoc.fileName}
-                  className="h-[72vh] w-full rounded-lg border border-slate-200 bg-white"
-                />
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+              <div className="flex flex-1 flex-col items-center overflow-auto bg-slate-100 p-4">
+                {previewDoc.mimeType.startsWith('image/') ? (
+                  <img
+                    src={previewDoc.dataUrl || previewDoc.fileUrl}
+                    alt={previewDoc.fileName}
+                    referrerPolicy="no-referrer"
+                    className="my-auto max-h-[72vh] w-auto rounded-lg object-contain shadow"
+                  />
+                ) : previewPdfLoading ? (
+                  <div className="my-auto flex flex-col items-center gap-2 py-12 text-sm text-teal-900/75">
+                    <Loader2 className="h-6 w-6 animate-spin text-teal-700" />
+                    <span>กำลังเปิดไฟล์ PDF...</span>
+                  </div>
+                ) : previewPdfPages.length > 0 ? (
+                  <div className="flex w-full flex-col items-center gap-4">
+                    {previewPdfPages.map((pageUrl, pageIdx) => (
+                      <div key={pageIdx} className="w-full max-w-2xl">
+                        {previewPdfPages.length > 1 && (
+                          <p className="mb-1 text-center text-xs font-medium text-teal-900/70">
+                            หน้า {pageIdx + 1} / {previewPdfPages.length}
+                          </p>
+                        )}
+                        <img
+                          src={pageUrl}
+                          alt={`${previewDoc.fileName} หน้า ${pageIdx + 1}`}
+                          className="mx-auto w-full rounded-lg border border-slate-200 bg-white shadow"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <iframe
+                    src={previewDoc.dataUrl || previewDoc.fileUrl}
+                    title={previewDoc.fileName}
+                    className="h-[72vh] w-full rounded-lg border border-slate-200 bg-white"
+                  />
+                )}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

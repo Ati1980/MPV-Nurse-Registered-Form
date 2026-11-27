@@ -500,69 +500,71 @@ export function HrReviewView({ onLogout }: HrReviewViewProps) {
         )}
 
         {applications.length > 0 && (
-          <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-12">
-            {/* Applicant List */}
-            <div className="space-y-2.5 lg:col-span-4">
-              <AnimatePresence initial={false}>
-                {applications.map((app, idx) => {
-                  const active = selectedApp?.applicationId === app.applicationId;
-                  const statusStyle = getApplicationStatusStyle(app.status);
-                  return (
-                    <motion.div
-                      key={app.applicationId}
-                      layout
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, scale: 0.95 }}
-                      transition={{
-                        duration: 0.24,
-                        delay: Math.min(idx * 0.04, 0.24),
-                        ease: [0.16, 1, 0.3, 1],
-                      }}
-                      className={`interactive-card relative rounded-2xl border ${
-                        active
-                          ? 'border-teal-700 bg-white shadow-sm'
-                          : 'border-teal-900/10 bg-white/60 hover:bg-white/90'
-                      }`}
-                    >
-                      <button
-                        type="button"
-                        onClick={() => setDeleteTarget(app)}
-                        title="ลบใบสมัครนี้"
-                        aria-label={`ลบใบสมัคร ${app.applicationId}`}
-                        className="absolute top-3.5 left-3 z-10 inline-flex h-6 w-6 items-center justify-center rounded-lg border border-rose-200 bg-rose-50/95 text-rose-600 transition-colors hover:border-rose-500 hover:bg-rose-600 hover:text-white cursor-pointer"
+          <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-12 lg:items-start">
+            {/* Applicant List (Scrollable when many cards) */}
+            <div className="lg:col-span-4">
+              <div className="custom-scrollbar max-h-[380px] space-y-2.5 overflow-y-auto overscroll-contain p-1 pr-2 lg:max-h-[540px]">
+                <AnimatePresence initial={false}>
+                  {applications.map((app, idx) => {
+                    const active = selectedApp?.applicationId === app.applicationId;
+                    const statusStyle = getApplicationStatusStyle(app.status);
+                    return (
+                      <motion.div
+                        key={app.applicationId}
+                        layout
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, scale: 0.95 }}
+                        transition={{
+                          duration: 0.24,
+                          delay: Math.min(idx * 0.04, 0.24),
+                          ease: [0.16, 1, 0.3, 1],
+                        }}
+                        className={`interactive-card relative rounded-2xl border ${
+                          active
+                            ? 'border-teal-700 bg-white shadow-sm'
+                            : 'border-teal-900/10 bg-white/60 hover:bg-white/90'
+                        }`}
                       >
-                        <X className="h-3.5 w-3.5" />
-                      </button>
+                        <button
+                          type="button"
+                          onClick={() => setDeleteTarget(app)}
+                          title="ลบใบสมัครนี้"
+                          aria-label={`ลบใบสมัคร ${app.applicationId}`}
+                          className="absolute top-3.5 left-3 z-10 inline-flex h-6 w-6 items-center justify-center rounded-lg border border-rose-200 bg-rose-50/95 text-rose-600 transition-colors hover:border-rose-500 hover:bg-rose-600 hover:text-white cursor-pointer"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
 
-                      <button
-                        type="button"
-                        onClick={() => handleSelectApp(app)}
-                        className="w-full rounded-2xl p-4 pl-11 text-left cursor-pointer"
-                      >
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                          <span className="font-mono text-xs font-semibold text-teal-800 tabular-nums">
-                            {app.applicationId}
-                          </span>
-                          <span
-                            className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-0.5 text-[11px] font-semibold ${statusStyle.badge}`}
-                          >
-                            <span className={`h-1.5 w-1.5 rounded-full ${statusStyle.dot}`} />
-                            <span>{app.status}</span>
-                          </span>
-                        </div>
-                        <p className="font-display mt-1.5 text-base font-semibold text-teal-950">
-                          {app.personalInfo.title} {app.personalInfo.fullNameTh}
-                        </p>
-                        <p className="mt-1 text-xs text-teal-900/75 tabular-nums">
-                          โทร {app.personalInfo.mobileNumber} · ใบประกอบฯ{' '}
-                          {app.nursingQualification.licenseNumber || '-'}
-                        </p>
-                      </button>
-                    </motion.div>
-                  );
-                })}
-              </AnimatePresence>
+                        <button
+                          type="button"
+                          onClick={() => handleSelectApp(app)}
+                          className="w-full rounded-2xl p-4 pl-11 text-left cursor-pointer"
+                        >
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <span className="font-mono text-xs font-semibold text-teal-800 tabular-nums">
+                              {app.applicationId}
+                            </span>
+                            <span
+                              className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-0.5 text-[11px] font-semibold ${statusStyle.badge}`}
+                            >
+                              <span className={`h-1.5 w-1.5 rounded-full ${statusStyle.dot}`} />
+                              <span>{app.status}</span>
+                            </span>
+                          </div>
+                          <p className="font-display mt-1.5 text-base font-semibold text-teal-950">
+                            {app.personalInfo.title} {app.personalInfo.fullNameTh}
+                          </p>
+                          <p className="mt-1 text-xs text-teal-900/75 tabular-nums">
+                            โทร {app.personalInfo.mobileNumber} · ใบประกอบฯ{' '}
+                            {app.nursingQualification.licenseNumber || '-'}
+                          </p>
+                        </button>
+                      </motion.div>
+                    );
+                  })}
+                </AnimatePresence>
+              </div>
             </div>
 
             {/* Selected Applicant Details & Status Controls */}

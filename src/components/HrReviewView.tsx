@@ -189,8 +189,11 @@ export function HrReviewView({ onLogout }: HrReviewViewProps) {
     );
   }, [localApplications, cloudApplications]);
 
+  const lastSyncedNoteAppIdRef = useRef<string | null>(null);
+
   useEffect(() => {
     if (applications.length === 0) {
+      lastSyncedNoteAppIdRef.current = null;
       setNoteDraft('');
       return;
     }
@@ -198,12 +201,14 @@ export function HrReviewView({ onLogout }: HrReviewViewProps) {
       ? applications.find((a) => a.applicationId === selectedId)
       : null;
     if (existingSelected) {
-      setNoteDraft((prev) =>
-        prev === '' && existingSelected.hrNote ? existingSelected.hrNote : prev
-      );
+      if (lastSyncedNoteAppIdRef.current !== existingSelected.applicationId) {
+        lastSyncedNoteAppIdRef.current = existingSelected.applicationId;
+        setNoteDraft(existingSelected.hrNote || '');
+      }
       return;
     }
     const first = applications[0];
+    lastSyncedNoteAppIdRef.current = first.applicationId;
     setSelectedId(first.applicationId);
     setNoteDraft(first.hrNote || '');
     try {

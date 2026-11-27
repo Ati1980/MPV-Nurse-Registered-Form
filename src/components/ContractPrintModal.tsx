@@ -1,7 +1,20 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'motion/react';
-import { FileDown, Loader2, Printer, RotateCcw, X } from 'lucide-react';
+import {
+  ChevronLeft,
+  ChevronRight,
+  EyeOff,
+  FileDown,
+  Loader2,
+  Maximize2,
+  Minimize2,
+  PanelLeftClose,
+  PanelLeftOpen,
+  Printer,
+  RotateCcw,
+  X,
+} from 'lucide-react';
 import type { DocumentSlotKey, SubmittedApplicationRecord } from '../types/application.ts';
 import { resolveApplicationFileApi } from '../utils/apiClient.ts';
 import {
@@ -11,6 +24,7 @@ import {
   type WordFontPreset,
 } from '../utils/contractWordExport.ts';
 import { renderPdfBlobToImageUrls } from '../utils/pdfRenderHelper.ts';
+import { toThaiBahtText } from '../utils/thaiBahtText.ts';
 
 const CONTRACT_ATTACHMENT_SLOTS: Array<{
   slotKey: DocumentSlotKey;
@@ -80,13 +94,13 @@ function buildInitialContractFields(app: SubmittedApplicationRecord): ContractFi
     endDate: '31 ธันวาคม 2570',
     morningTime: '08.30 - 16.30 น.',
     morningRate: '900',
-    morningRateText: 'เก้าร้อยบาทถ้วน',
+    morningRateText: toThaiBahtText('900') || 'เก้าร้อยบาทถ้วน',
     afternoonTime: '16.30 - 24.30 น.',
     afternoonRate: '950',
-    afternoonRateText: 'เก้าร้อยห้าสิบบาทถ้วน',
+    afternoonRateText: toThaiBahtText('950') || 'เก้าร้อยห้าสิบบาทถ้วน',
     nightTime: '24.30 - 08.30 น.',
     nightRate: '1,000',
-    nightRateText: 'หนึ่งพันบาทถ้วน',
+    nightRateText: toThaiBahtText('1,000') || 'หนึ่งพันบาทถ้วน',
     payDay: '25',
     witness1: 'นางสาวพิรุณพร พุ่มไสว',
     witness2: 'นางสาวสุพัตรา ติยะภา',
@@ -489,6 +503,9 @@ export function ContractPrintModal({ open, applicant, onClose }: ContractPrintMo
   const [includeAttachments, setIncludeAttachments] = useState(true);
   const [wordFont, setWordFont] = useState<WordFontPreset>(DEFAULT_WORD_FONT);
   const [exportingWord, setExportingWord] = useState(false);
+  const [asideCollapsed, setAsideCollapsed] = useState(false);
+  const [asideExpanded, setAsideExpanded] = useState(false);
+  const [asideHidden, setAsideHidden] = useState(false);
   const [attachments, setAttachments] = useState<ResolvedContractAttachment[]>(() =>
     CONTRACT_ATTACHMENT_SLOTS.map((slot) => ({
       slotKey: slot.slotKey,
@@ -498,10 +515,19 @@ export function ContractPrintModal({ open, applicant, onClose }: ContractPrintMo
     }))
   );
   const objectUrlsRef = useRef<string[]>([]);
+  const lastInitAppIdRef = useRef<string | null>(null);
+  const applicantRef = useRef(applicant);
+  applicantRef.current = applicant;
+  const docsSignature = applicant.documents.map((d) => `${d.id}:${d.fileName}`).join('|');
 
   useEffect(() => {
-    if (open) {
+    if (!open) {
+      lastInitAppIdRef.current = null;
+      return;
+    }
+    if (lastInitAppIdRef.current !== applicant.applicationId) {
       setFields(buildInitialContractFields(applicant));
+      lastInitAppIdRef.current = applicant.applicationId;
     }
   }, [open, applicant]);
 
@@ -531,9 +557,10 @@ export function ContractPrintModal({ open, applicant, onClose }: ContractPrintMo
     );
 
     const loadAll = async () => {
+      const currentApplicant = applicantRef.current;
       const results = await Promise.all(
         CONTRACT_ATTACHMENT_SLOTS.map(async (slot): Promise<ResolvedContractAttachment> => {
-          const slotDocs = applicant.documents.filter((d) => d.slotKey === slot.slotKey);
+          const slotDocs = currentApplicant.documents.filter((d) => d.slotKey === slot.slotKey);
           if (slotDocs.length === 0) {
             return {
               slotKey: slot.slotKey,
@@ -546,7 +573,7 @@ export function ContractPrintModal({ open, applicant, onClose }: ContractPrintMo
           try {
             const collectedImageUrls: string[] = [];
             for (const docItem of slotDocs) {
-              const resolved = await resolveApplicationFileApi(applicant.applicationId, docItem);
+              const resolved = await resolveApplicationFileApi(currentApplicant.applicationId, docItem);
               if (!resolved) {
                 continue;
               }
@@ -616,7 +643,7 @@ export function ContractPrintModal({ open, applicant, onClose }: ContractPrintMo
       cancelled = true;
       revokeAll();
     };
-  }, [open, includeAttachments, applicant]);
+  }, [open, includeAttachments, applicant.applicationId, docsSignature]);
 
   useEffect(() => {
     if (!open) return;
@@ -638,6 +665,19 @@ export function ContractPrintModal({ open, applicant, onClose }: ContractPrintMo
 
   const updateField = <K extends keyof ContractFields>(key: K, value: ContractFields[K]) => {
     setFields((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const updateRateWithBahtText = (
+    rateKey: 'morningRate' | 'afternoonRate' | 'nightRate',
+    textKey: 'morningRateText' | 'afternoonRateText' | 'nightRateText',
+    rawValue: string
+  ) => {
+    const converted = toThaiBahtText(rawValue);
+    setFields((prev) => ({
+      ...prev,
+      [rateKey]: rawValue,
+      ...(converted !== null ? { [textKey]: converted } : {}),
+    }));
   };
 
   const toggleFieldBold = (key: keyof ContractFields, mirrorKey?: keyof ContractFields) => {
@@ -687,6 +727,7 @@ export function ContractPrintModal({ open, applicant, onClose }: ContractPrintMo
   const resetAll = () => {
     setFields(buildInitialContractFields(applicant));
     setFieldStyles(buildDefaultFieldStyles());
+    setWordFont(DEFAULT_WORD_FONT);
   };
 
   const handleExportWord = async () => {
@@ -731,6 +772,20 @@ export function ContractPrintModal({ open, applicant, onClose }: ContractPrintMo
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          {asideHidden && (
+            <button
+              type="button"
+              onClick={() => {
+                setAsideHidden(false);
+                setAsideCollapsed(false);
+              }}
+              className="btn-lift inline-flex min-h-[40px] items-center gap-1.5 rounded-xl border border-teal-700/25 bg-teal-50 px-3.5 py-2 text-xs font-semibold text-teal-900 hover:bg-teal-100 cursor-pointer"
+            >
+              <PanelLeftOpen className="h-3.5 w-3.5" />
+              <span>แสดงแถบแก้ไข</span>
+            </button>
+          )}
+
           <button
             type="button"
             onClick={resetAll}
@@ -801,17 +856,99 @@ export function ContractPrintModal({ open, applicant, onClose }: ContractPrintMo
 
       {/* Main Split Workspace */}
       <div className="flex-1 overflow-y-auto p-3 sm:p-6 print:overflow-visible print:p-0">
-        <div className="mx-auto grid max-w-7xl grid-cols-1 gap-6 lg:grid-cols-12 print:block">
+        <div className="mx-auto flex w-full max-w-[1480px] flex-col items-start gap-5 lg:flex-row print:block">
           {/* Left Editable Controls */}
-          <aside className="no-print glass-panel h-fit rounded-2xl bg-white/95 p-4 sm:p-5 lg:col-span-4 lg:sticky lg:top-0 lg:max-h-[calc(100vh-7.5rem)] lg:overflow-y-auto">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <h3 className="font-display text-sm font-bold text-teal-950">
-                ตำแหน่งที่สามารถแก้ไขได้
-              </h3>
-            </div>
+          {!asideHidden && (
+            <aside
+              className={`no-print glass-panel h-fit rounded-2xl bg-white/95 lg:sticky lg:top-0 lg:max-h-[calc(100vh-7.5rem)] overflow-x-hidden transition-[width,padding] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] shrink-0 ${
+                asideCollapsed
+                  ? 'w-full p-2.5 lg:w-14 lg:px-2 lg:py-3'
+                  : asideExpanded
+                  ? 'w-full p-4 sm:p-5 lg:w-[540px] xl:w-[580px] lg:overflow-y-auto'
+                  : 'w-full p-4 sm:p-5 lg:w-[390px] xl:w-[420px] lg:overflow-y-auto'
+              }`}
+            >
+              {asideCollapsed ? (
+                <div className="flex items-center justify-between gap-2 lg:flex-col lg:items-center lg:gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setAsideCollapsed(false)}
+                    aria-expanded={false}
+                    title="กางแผงแก้ไข (ซ้ายไปขวา)"
+                    className="inline-flex h-9 w-full items-center justify-center gap-1.5 rounded-xl border border-teal-800/20 bg-teal-50 px-2 text-xs font-semibold text-teal-900 transition-colors hover:bg-teal-100 lg:h-10 lg:w-10 lg:px-0 cursor-pointer"
+                  >
+                    <ChevronRight className="h-4 w-4 shrink-0" />
+                    <span className="lg:hidden">กางแถบแก้ไข</span>
+                  </button>
 
-            {/* Active Field Bold & Size Toolbar */}
-            <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-teal-800/15 bg-teal-50/80 px-3 py-2 text-xs">
+                  <span className="hidden select-none text-[11px] font-bold tracking-wide text-teal-900/75 lg:block [writing-mode:vertical-rl]">
+                    ตำแหน่งที่แก้ไขได้
+                  </span>
+
+                  <button
+                    type="button"
+                    onClick={() => setAsideHidden(true)}
+                    title="ซ่อนแผงแก้ไข"
+                    aria-label="ซ่อนแผงแก้ไข"
+                    className="inline-flex h-9 shrink-0 items-center justify-center gap-1 rounded-xl border border-teal-900/15 bg-white px-2.5 text-[11px] font-medium text-teal-900 transition-colors hover:bg-rose-50 hover:text-rose-700 lg:h-9 lg:w-10 lg:px-0 cursor-pointer"
+                  >
+                    <EyeOff className="h-3.5 w-3.5" />
+                    <span className="lg:hidden">ซ่อน</span>
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <h3 className="font-display text-sm font-bold text-teal-950">
+                      ตำแหน่งที่สามารถแก้ไขได้
+                    </h3>
+
+                    <div className="inline-flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => setAsideExpanded((prev) => !prev)}
+                        title={asideExpanded ? 'ย่อความกว้างแผง' : 'ขยายความกว้างแผง'}
+                        className="inline-flex h-7 items-center gap-1 rounded-lg border border-teal-900/15 bg-white px-2 text-[11px] font-medium text-teal-900 transition-colors hover:bg-teal-50 cursor-pointer"
+                      >
+                        {asideExpanded ? (
+                          <Minimize2 className="h-3 w-3" />
+                        ) : (
+                          <Maximize2 className="h-3 w-3" />
+                        )}
+                        <span>{asideExpanded ? 'ปกติ' : 'ขยาย'}</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setAsideCollapsed(true)}
+                        aria-expanded={true}
+                        title="พับเก็บด้านข้าง (ขวาไปซ้าย)"
+                        className="inline-flex h-7 items-center gap-1 rounded-lg border border-teal-900/15 bg-white px-2 text-[11px] font-medium text-teal-900 transition-colors hover:bg-teal-50 cursor-pointer"
+                      >
+                        <PanelLeftClose className="h-3.5 w-3.5 hidden lg:inline" />
+                        <ChevronLeft className="h-3.5 w-3.5 lg:hidden" />
+                        <span>พับ</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setAsideHidden(true)}
+                        title="ซ่อนแผงแก้ไข"
+                        className="inline-flex h-7 items-center gap-1 rounded-lg border border-teal-900/15 bg-white px-2 text-[11px] font-medium text-teal-900 transition-colors hover:bg-rose-50 hover:text-rose-700 cursor-pointer"
+                      >
+                        <EyeOff className="h-3 w-3" />
+                        <span>ซ่อน</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  <motion.div
+                    initial={{ opacity: 0, x: -12 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+                  >
+                    {/* Active Field Bold & Size Toolbar */}
+                    <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-teal-800/15 bg-teal-50/80 px-3 py-2 text-xs">
               <div className="min-w-0">
                 <span className="text-[11px] text-teal-800">ช่องที่เลือก: </span>
                 <span className="font-semibold text-teal-950">
@@ -1073,7 +1210,9 @@ export function ContractPrintModal({ open, applicant, onClose }: ContractPrintMo
                     aria-label="ค่าบริการเวรเช้า"
                     value={fields.morningRate}
                     onFocus={() => setActiveFieldKey('morningRate')}
-                    onChange={(e) => updateField('morningRate', e.target.value)}
+                    onChange={(e) =>
+                      updateRateWithBahtText('morningRate', 'morningRateText', e.target.value)
+                    }
                     className="glass-input col-span-3 rounded-lg px-2 py-1 text-xs"
                   />
                   <input
@@ -1099,7 +1238,9 @@ export function ContractPrintModal({ open, applicant, onClose }: ContractPrintMo
                     aria-label="ค่าบริการเวรบ่าย"
                     value={fields.afternoonRate}
                     onFocus={() => setActiveFieldKey('afternoonRate')}
-                    onChange={(e) => updateField('afternoonRate', e.target.value)}
+                    onChange={(e) =>
+                      updateRateWithBahtText('afternoonRate', 'afternoonRateText', e.target.value)
+                    }
                     className="glass-input col-span-3 rounded-lg px-2 py-1 text-xs"
                   />
                   <input
@@ -1125,7 +1266,9 @@ export function ContractPrintModal({ open, applicant, onClose }: ContractPrintMo
                     aria-label="ค่าบริการเวรดึก"
                     value={fields.nightRate}
                     onFocus={() => setActiveFieldKey('nightRate')}
-                    onChange={(e) => updateField('nightRate', e.target.value)}
+                    onChange={(e) =>
+                      updateRateWithBahtText('nightRate', 'nightRateText', e.target.value)
+                    }
                     className="glass-input col-span-3 rounded-lg px-2 py-1 text-xs"
                   />
                   <input
@@ -1196,11 +1339,19 @@ export function ContractPrintModal({ open, applicant, onClose }: ContractPrintMo
                 <span>ต่อท้ายเอกสารแนบ 4 ชุด (A4 ต่อแผ่น · PDF หลายหน้าแสดงเรียงต่อกัน)</span>
               </label>
             </div>
-          </aside>
+                  </motion.div>
+                </>
+              )}
+            </aside>
+          )}
 
           {/* Right Live A4 Contract Preview */}
-          <div className="lg:col-span-8 print:w-full">
-            <div className="contract-sheet mx-auto max-w-[210mm] rounded-2xl bg-white p-6 shadow-xl sm:p-12 print:max-w-full print:rounded-none print:p-0 print:shadow-none">
+          <div className="min-w-0 w-full flex-1 print:w-full transition-all duration-300">
+            <div
+              className={`contract-sheet mx-auto w-full rounded-2xl bg-white p-6 shadow-xl sm:p-12 transition-[max-width] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] print:max-w-full print:rounded-none print:p-0 print:shadow-none ${
+                asideCollapsed || asideHidden ? 'max-w-[1160px]' : 'max-w-[210mm]'
+              }`}
+            >
               <ContractDocumentSet label="ต้นฉบับ" fields={fields} fieldStyles={fieldStyles} />
 
               {includeCopy && (

@@ -24,18 +24,18 @@ export type WordFontPreset =
   | 'Cordia New'
   | 'DilleniaUPC';
 
-export const DEFAULT_WORD_FONT: WordFontPreset = 'Sarabun';
+export const DEFAULT_WORD_FONT: WordFontPreset = 'DilleniaUPC';
 
 export const WORD_FONT_OPTIONS: ReadonlyArray<{
   value: WordFontPreset;
   label: string;
 }> = [
+  { value: 'DilleniaUPC', label: 'DilleniaUPC' },
   { value: 'Sarabun', label: 'Sarabun (ฝังฟอนต์ · Word ล่าสุด)' },
   { value: 'TH Sarabun New', label: 'TH Sarabun New' },
   { value: 'TH SarabunPSK', label: 'TH SarabunPSK' },
   { value: 'Angsana New', label: 'Angsana New' },
   { value: 'Cordia New', label: 'Cordia New' },
-  { value: 'DilleniaUPC', label: 'DilleniaUPC' },
 ];
 
 export interface WordAttachmentItem {

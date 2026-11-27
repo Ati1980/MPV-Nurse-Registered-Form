@@ -240,6 +240,11 @@ export function HrReviewView({ onLogout }: HrReviewViewProps) {
           : '';
       if (code === 'auth/popup-blocked') {
         setAuthWarning('เบราว์เซอร์บล็อกหน้าต่างเข้าสู่ระบบ Google กรุณาอนุญาตป๊อปอัปแล้วลองอีกครั้ง');
+      } else if (code === 'auth/unauthorized-domain') {
+        const currentHost = typeof window !== 'undefined' ? window.location.hostname : '';
+        setAuthWarning(
+          `โดเมน "${currentHost}" ยังไม่ได้รับอนุญาตใน Firebase Authentication กรุณาไปที่ Firebase Console → Authentication → Settings → Authorized domains แล้วเพิ่มโดเมน "${currentHost}"`
+        );
       } else if (code !== 'auth/popup-closed-by-user' && code !== 'auth/cancelled-popup-request') {
         setAuthWarning('ไม่สามารถเข้าสู่ระบบ Google ได้ กรุณาลองใหม่อีกครั้ง');
       }
@@ -650,6 +655,15 @@ export function HrReviewView({ onLogout }: HrReviewViewProps) {
             </button>
           </div>
         </div>
+
+        {!isFirebaseConfigured && (
+          <div className="mt-4 rounded-2xl border border-amber-300 bg-amber-50/90 p-4 text-sm text-amber-950">
+            <p className="font-bold">ยังไม่ได้เชื่อมต่อค่ากำหนด Firebase คลาวด์ในบิลด์นี้</p>
+            <p className="mt-1 text-xs text-amber-900/85">
+              กรุณาตรวจสอบว่าได้อัปโหลดไฟล์ firebase-applet-config.json ขึ้น GitHub แล้ว หรือตั้งค่า Environment Variables (VITE_FIREBASE_API_KEY, VITE_FIREBASE_PROJECT_ID, VITE_FIREBASE_APP_ID, VITE_FIREBASE_AUTH_DOMAIN, VITE_FIREBASE_DATABASE_ID) บน Vercel จากนั้น Redeploy อีกครั้ง
+            </p>
+          </div>
+        )}
 
         {isFirebaseConfigured && authReady && !checkingCloudAdmin && !isCloudAdmin && (
           <div className="mt-4 flex flex-col gap-3 rounded-2xl border border-sky-300/80 bg-sky-50/90 p-4 sm:flex-row sm:items-center sm:justify-between">

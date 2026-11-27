@@ -26,8 +26,71 @@ import {
   saveDraftDocumentsToIdb,
 } from './utils/draftStorage.ts';
 
+const HR_UNLOCK_STORAGE_KEY = 'mpv_hr_unlocked_until_v1';
+const ACTIVE_PAGE_STORAGE_KEY = 'mpv_active_page_v1';
+const HR_UNLOCK_TTL_MS = 12 * 60 * 60 * 1000; // 12 hours (cleared immediately on logout)
+const VALID_PAGES: ReadonlySet<ActivePage> = new Set(['overview', 'apply', 'track', 'hr']);
+
+function readPersistedHrUnlocked(): boolean {
+  try {
+    const raw = localStorage.getItem(HR_UNLOCK_STORAGE_KEY);
+    if (!raw) return false;
+    const expiresAt = Number(raw);
+    if (!Number.isFinite(expiresAt) || expiresAt <= Date.now()) {
+      localStorage.removeItem(HR_UNLOCK_STORAGE_KEY);
+      return false;
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function writePersistedHrUnlocked(unlocked: boolean): void {
+  try {
+    if (unlocked) {
+      localStorage.setItem(HR_UNLOCK_STORAGE_KEY, String(Date.now() + HR_UNLOCK_TTL_MS));
+    } else {
+      localStorage.removeItem(HR_UNLOCK_STORAGE_KEY);
+    }
+  } catch {
+    // Ignore storage error
+  }
+}
+
+function readHashPage(): ActivePage | null {
+  try {
+    const raw = window.location.hash.replace(/^#\/?/, '').trim() as ActivePage;
+    return VALID_PAGES.has(raw) ? raw : null;
+  } catch {
+    return null;
+  }
+}
+
+function readInitialActivePage(isHrUnlocked: boolean): ActivePage {
+  const fromHash = readHashPage();
+  let candidate: ActivePage | null = fromHash;
+  if (!candidate) {
+    try {
+      const saved = sessionStorage.getItem(ACTIVE_PAGE_STORAGE_KEY) as ActivePage | null;
+      if (saved && VALID_PAGES.has(saved)) {
+        candidate = saved;
+      }
+    } catch {
+      // Ignore storage error
+    }
+  }
+  if (candidate === 'hr' && !isHrUnlocked) {
+    return 'overview';
+  }
+  return candidate ?? 'overview';
+}
+
 export default function App() {
-  const [activePage, setActivePage] = useState<ActivePage>('overview');
+  const [hrUnlocked, setHrUnlocked] = useState<boolean>(() => readPersistedHrUnlocked());
+  const [activePage, setActivePage] = useState<ActivePage>(() =>
+    readInitialActivePage(readPersistedHrUnlocked())
+  );
   const [formData, setFormData] = useState<ApplicationFormData>(() => {
     try {
       const saved = localStorage.getItem(DRAFT_STORAGE_KEY);
@@ -81,9 +144,38 @@ export default function App() {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submittedRecord, setSubmittedRecord] = useState<SubmittedApplicationRecord | null>(null);
   const [trackInitialCode, setTrackInitialCode] = useState('');
-  const [hrUnlocked, setHrUnlocked] = useState(false);
-  const [hrPinModalOpen, setHrPinModalOpen] = useState(false);
+  const [hrPinModalOpen, setHrPinModalOpen] = useState<boolean>(() => {
+    const hashPage = readHashPage();
+    return hashPage === 'hr' && !readPersistedHrUnlocked();
+  });
   const [idbHydrated, setIdbHydrated] = useState(false);
+
+  // Sync activePage to URL hash & sessionStorage so page refresh keeps the current view (including HR)
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(ACTIVE_PAGE_STORAGE_KEY, activePage);
+      const targetHash = `#${activePage}`;
+      if (window.location.hash !== targetHash) {
+        window.history.replaceState(null, '', targetHash);
+      }
+    } catch {
+      // Ignore history/storage error
+    }
+  }, [activePage]);
+
+  useEffect(() => {
+    const onHashChange = () => {
+      const next = readHashPage();
+      if (!next) return;
+      if (next === 'hr' && !hrUnlocked) {
+        setHrPinModalOpen(true);
+        return;
+      }
+      setActivePage(next);
+    };
+    window.addEventListener('hashchange', onHashChange);
+    return () => window.removeEventListener('hashchange', onHashChange);
+  }, [hrUnlocked]);
 
   // Hydrate full draft documents (including large PDFs/images) from IndexedDB on mount
   useEffect(() => {
@@ -401,6 +493,12 @@ export default function App() {
           {activePage === 'hr' && hrUnlocked && (
             <HrReviewView
               onLogout={() => {
+                writePersistedHrUnlocked(false);
+                try {
+                  sessionStorage.removeItem('mpv_hr_selected_id_v1');
+                } catch {
+                  // Ignore storage error
+                }
                 setHrUnlocked(false);
                 setActivePage('overview');
                 scrollToTop();
@@ -415,6 +513,7 @@ export default function App() {
         open={hrPinModalOpen}
         onClose={() => setHrPinModalOpen(false)}
         onSuccess={() => {
+          writePersistedHrUnlocked(true);
           setHrUnlocked(true);
           setHrPinModalOpen(false);
           setActivePage('hr');

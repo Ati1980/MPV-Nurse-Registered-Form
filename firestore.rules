@@ -28,17 +28,25 @@ service cloud.firestore {
     }
 
     function isVerifiedUser() {
-      return isSignedIn() && request.auth.token.email_verified == true;
+      return isSignedIn() &&
+        'email' in request.auth.token &&
+        request.auth.token.email is string &&
+        request.auth.token.email_verified == true;
     }
 
     function isBootstrappedAdmin() {
-      return isVerifiedUser() && request.auth.token.email == 'kku.tum@gmail.com';
+      return isVerifiedUser() && request.auth.token.email.lower() == 'kku.tum@gmail.com';
+    }
+
+    function requestEmailHash() {
+      return hashing.sha256(request.auth.token.email.lower().toUtf8()).toHexString().lower();
     }
 
     function isAdmin() {
       return isVerifiedUser() && (
         isBootstrappedAdmin() ||
-        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ||
+        exists(/databases/$(database)/documents/hr_allowlist/$(requestEmailHash()))
       );
     }
 
@@ -281,12 +289,26 @@ service cloud.firestore {
         data.createdAt is timestamp;
     }
 
+    function isValidHrAllowlistEntry(data) {
+      return data is map &&
+        data.keys().hasAll(['emailHash', 'email', 'addedByUid', 'addedByEmail', 'createdAt']) &&
+        data.keys().hasOnly(['emailHash', 'email', 'label', 'addedByUid', 'addedByEmail', 'createdAt']) &&
+        isValidId(data.emailHash) &&
+        data.emailHash.size() == 64 &&
+        data.emailHash.matches('^[a-f0-9]{64}$') &&
+        isBoundedString(data.email, 3, 150) &&
+        (!('label' in data) || isBoundedString(data.label, 0, 120)) &&
+        isValidId(data.addedByUid) &&
+        isBoundedString(data.addedByEmail, 3, 150) &&
+        data.createdAt is timestamp;
+    }
+
     // ---------------------------------------------------------
     // Collection: /nurse_register/{applicationId}
     // ---------------------------------------------------------
     match /nurse_register/{applicationId} {
       allow get: if isValidId(applicationId) && isAdmin();
-      allow list: if isBootstrappedAdmin();
+      allow list: if isAdmin();
       allow create: if isValidId(applicationId) &&
         isValidNurseRegistration(incoming()) &&
         incoming().applicationId == applicationId &&
@@ -311,7 +333,7 @@ service cloud.firestore {
           isValidId(docId) &&
           isAdmin() &&
           exists(/databases/$(database)/documents/nurse_register/$(applicationId));
-        allow list: if isBootstrappedAdmin();
+        allow list: if isAdmin();
         allow create: if isValidId(applicationId) &&
           isValidId(docId) &&
           isValidRegistrationFile(incoming()) &&
@@ -335,7 +357,7 @@ service cloud.firestore {
     // ---------------------------------------------------------
     match /nurse_register_status/{applicationId} {
       allow get: if isValidId(applicationId);
-      allow list: if isBootstrappedAdmin();
+      allow list: if isAdmin();
       allow create: if isValidId(applicationId) &&
         isValidNurseRegistrationStatus(incoming()) &&
         incoming().applicationId == applicationId &&
@@ -368,6 +390,24 @@ service cloud.firestore {
         incoming().createdAt == request.time;
       allow update: if false;
       allow delete: if false;
+    }
+
+    // ---------------------------------------------------------
+    // Collection: /hr_allowlist/{emailHash}
+    // ---------------------------------------------------------
+    match /hr_allowlist/{emailHash} {
+      allow get: if isValidId(emailHash) &&
+        isVerifiedUser() &&
+        (isAdmin() || emailHash == requestEmailHash());
+      allow list: if isBootstrappedAdmin();
+      allow create: if isValidId(emailHash) &&
+        isValidHrAllowlistEntry(incoming()) &&
+        isBootstrappedAdmin() &&
+        incoming().emailHash == emailHash &&
+        incoming().addedByUid == request.auth.uid &&
+        incoming().createdAt == request.time;
+      allow update: if false;
+      allow delete: if isValidId(emailHash) && isBootstrappedAdmin();
     }
   }
 }

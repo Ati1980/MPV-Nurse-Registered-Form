@@ -90,10 +90,10 @@ function saveBase64Document(
   };
 }
 
-function generateApplicationId(existingCount: number): string {
-  const sequence = String(existingCount + 1).padStart(4, '0');
+function generateApplicationId(_existingCount: number): string {
+  const timePart = Date.now().toString(36).toUpperCase();
   const randomSuffix = Math.random().toString(36).substring(2, 5).toUpperCase();
-  return `MPV-2570-${sequence}-${randomSuffix}`;
+  return `MPV-2570-${timePart}-${randomSuffix}`;
 }
 
 async function startServer(): Promise<void> {

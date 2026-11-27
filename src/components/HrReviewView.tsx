@@ -3,32 +3,44 @@ import { createPortal } from 'react-dom';
 import { onAuthStateChanged, type User } from 'firebase/auth';
 import {
   AlertTriangle,
+  Cloud,
   Download,
   ExternalLink,
   Eye,
   FileText,
   Loader2,
+  LogIn,
   LogOut,
   Printer,
   RefreshCw,
   ScrollText,
   Trash2,
   UploadCloud,
+  UserPlus,
+  Users,
   X,
 } from 'lucide-react';
-import { auth, signInHrWithGoogle, signOutHrGoogle } from '../firebase.ts';
+import { auth, isFirebaseConfigured, signInHrWithGoogle, signOutHrGoogle } from '../firebase.ts';
 import type {
   ApplicationStatus,
   SubmittedApplicationRecord,
   UploadedDocumentItem,
 } from '../types/application.ts';
 import {
+  addAuthorizedHrEmailApi,
   attachMissingApplicationFileApi,
+  BOOTSTRAPPED_ADMIN_EMAIL,
+  checkFirestoreHrAdmin,
   deleteApplicationApi,
+  fetchCloudApplicationsApi,
+  type HrAllowlistEntry,
   isVerifiedBootstrappedAdmin,
   listApplicationsApi,
+  listAuthorizedHrEmailsApi,
+  removeAuthorizedHrEmailApi,
   resolveApplicationFileApi,
   subscribeNurseRegistrations,
+  syncLocalApplicationToCloudApi,
   updateApplicationStatusApi,
 } from '../utils/apiClient.ts';
 import {
@@ -39,6 +51,8 @@ import {
 import { renderPdfBlobToImageUrls } from '../utils/pdfRenderHelper.ts';
 import { ContractPrintModal } from './ContractPrintModal.tsx';
 import { PrintableApplicationSheet } from './PrintableApplicationSheet.tsx';
+
+const HR_SELECTED_ID_STORAGE_KEY = 'mpv_hr_selected_id_v1';
 
 const STATUS_OPTIONS: ApplicationStatus[] = [
   'ได้รับใบสมัครแล้ว',
@@ -54,7 +68,13 @@ interface HrReviewViewProps {
 export function HrReviewView({ onLogout }: HrReviewViewProps) {
   const [localApplications, setLocalApplications] = useState<SubmittedApplicationRecord[]>([]);
   const [cloudApplications, setCloudApplications] = useState<SubmittedApplicationRecord[]>([]);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(() => {
+    try {
+      return sessionStorage.getItem(HR_SELECTED_ID_STORAGE_KEY);
+    } catch {
+      return null;
+    }
+  });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [savingStatus, setSavingStatus] = useState(false);
@@ -77,10 +97,22 @@ export function HrReviewView({ onLogout }: HrReviewViewProps) {
 
   const [authReady, setAuthReady] = useState(false);
   const [firebaseUser, setFirebaseUser] = useState<User | null>(null);
+  const [isCloudAdmin, setIsCloudAdmin] = useState(false);
+  const [checkingCloudAdmin, setCheckingCloudAdmin] = useState(false);
+  const [signingInCloud, setSigningInCloud] = useState(false);
+  const [syncingLocal, setSyncingLocal] = useState(false);
   const [authWarning, setAuthWarning] = useState<string | null>(null);
-  const autoAuthAttemptedRef = useRef(false);
+  const [cloudSyncedOnce, setCloudSyncedOnce] = useState(false);
 
-  const isCloudAdmin = Boolean(
+  const [teamModalOpen, setTeamModalOpen] = useState(false);
+  const [hrTeamList, setHrTeamList] = useState<HrAllowlistEntry[]>([]);
+  const [loadingTeam, setLoadingTeam] = useState(false);
+  const [newHrEmail, setNewHrEmail] = useState('');
+  const [newHrLabel, setNewHrLabel] = useState('');
+  const [savingTeamMember, setSavingTeamMember] = useState(false);
+  const [teamError, setTeamError] = useState<string | null>(null);
+
+  const isOwnerAdmin = Boolean(
     authReady &&
       firebaseUser &&
       isVerifiedBootstrappedAdmin(firebaseUser.email, firebaseUser.emailVerified)
@@ -89,70 +121,205 @@ export function HrReviewView({ onLogout }: HrReviewViewProps) {
   useEffect(() => {
     if (!auth) {
       setAuthReady(true);
+      setIsCloudAdmin(false);
       return;
     }
+    let cancelled = false;
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       setFirebaseUser(user);
       setAuthReady(true);
-      if (user && !isVerifiedBootstrappedAdmin(user.email, user.emailVerified)) {
-        setAuthWarning('บัญชี Google นี้ไม่มีสิทธิ์ผู้ดูแล HR ในระบบฐานข้อมูลคลาวด์');
-      } else {
+      if (!user) {
+        setIsCloudAdmin(false);
+        setCheckingCloudAdmin(false);
         setAuthWarning(null);
+        return;
       }
+
+      if (isVerifiedBootstrappedAdmin(user.email, user.emailVerified)) {
+        setIsCloudAdmin(true);
+        setCheckingCloudAdmin(false);
+        setAuthWarning(null);
+        return;
+      }
+
+      setCheckingCloudAdmin(true);
+      void checkFirestoreHrAdmin(user.uid, user.email, user.emailVerified)
+        .then((allowed) => {
+          if (cancelled) return;
+          setIsCloudAdmin(allowed);
+          if (!allowed) {
+            setAuthWarning(
+              `บัญชี ${user.email || ''} ยังไม่ได้รับสิทธิ์ผู้ดูแล HR กรุณาแจ้ง ${BOOTSTRAPPED_ADMIN_EMAIL} เพิ่มอีเมลนี้ในเมนู "จัดการสิทธิ์ทีม HR" หรือสลับบัญชี Google`
+            );
+          } else {
+            setAuthWarning(null);
+          }
+        })
+        .catch(() => {
+          if (cancelled) return;
+          setIsCloudAdmin(false);
+          setAuthWarning(
+            `ไม่สามารถตรวจสอบสิทธิ์ของบัญชี ${user.email || ''} ได้ กรุณาลองใหม่อีกครั้ง`
+          );
+        })
+        .finally(() => {
+          if (!cancelled) {
+            setCheckingCloudAdmin(false);
+          }
+        });
     });
-    return unsubscribe;
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
   }, []);
 
+  const loadHrTeamList = useCallback(async () => {
+    if (!isOwnerAdmin) return;
+    setLoadingTeam(true);
+    setTeamError(null);
+    try {
+      const list = await listAuthorizedHrEmailsApi();
+      setHrTeamList(list);
+    } catch {
+      setTeamError('ไม่สามารถโหลดรายชื่ออีเมลทีม HR ได้');
+    } finally {
+      setLoadingTeam(false);
+    }
+  }, [isOwnerAdmin]);
+
   useEffect(() => {
-    if (!auth || !authReady || firebaseUser || autoAuthAttemptedRef.current) return;
-    autoAuthAttemptedRef.current = true;
-    void signInHrWithGoogle().catch((err: unknown) => {
+    if (teamModalOpen && isOwnerAdmin) {
+      void loadHrTeamList();
+    }
+  }, [teamModalOpen, isOwnerAdmin, loadHrTeamList]);
+
+  const handleAddHrEmail = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setTeamError(null);
+    setSavingTeamMember(true);
+    try {
+      const created = await addAuthorizedHrEmailApi(newHrEmail, newHrLabel);
+      setHrTeamList((prev) => [
+        created,
+        ...prev.filter((item) => item.emailHash !== created.emailHash),
+      ]);
+      setNewHrEmail('');
+      setNewHrLabel('');
+    } catch (err) {
+      setTeamError(
+        err instanceof Error && err.message ? err.message : 'ไม่สามารถเพิ่มอีเมลทีม HR ได้'
+      );
+    } finally {
+      setSavingTeamMember(false);
+    }
+  };
+
+  const handleRemoveHrEmail = async (emailHash: string) => {
+    setTeamError(null);
+    try {
+      await removeAuthorizedHrEmailApi(emailHash);
+      setHrTeamList((prev) => prev.filter((item) => item.emailHash !== emailHash));
+    } catch {
+      setTeamError('ไม่สามารถลบสิทธิ์อีเมลนี้ได้');
+    }
+  };
+
+  const handleSignInCloud = useCallback(async () => {
+    if (!auth) return;
+    setSigningInCloud(true);
+    setAuthWarning(null);
+    setError(null);
+    try {
+      await signInHrWithGoogle();
+    } catch (err: unknown) {
       const code =
         typeof err === 'object' && err !== null && 'code' in err
           ? String((err as { code?: unknown }).code)
           : '';
       if (code === 'auth/popup-blocked') {
-        setAuthWarning(
-          'เบราว์เซอร์บล็อกหน้าต่างยืนยันบัญชี HR อัตโนมัติ กรุณากดปุ่ม "รีเฟรชรายการ" เพื่อซิงค์ข้อมูลจาก Firebase'
-        );
+        setAuthWarning('เบราว์เซอร์บล็อกหน้าต่างเข้าสู่ระบบ Google กรุณาอนุญาตป๊อปอัปแล้วลองอีกครั้ง');
+      } else if (code !== 'auth/popup-closed-by-user' && code !== 'auth/cancelled-popup-request') {
+        setAuthWarning('ไม่สามารถเข้าสู่ระบบ Google ได้ กรุณาลองใหม่อีกครั้ง');
       }
-    });
-  }, [authReady, firebaseUser]);
+    } finally {
+      setSigningInCloud(false);
+    }
+  }, []);
 
   useEffect(() => {
     if (!isCloudAdmin) {
       setCloudApplications([]);
+      setCloudSyncedOnce(false);
       return;
     }
-    const unsubscribe = subscribeNurseRegistrations((records) => {
-      setCloudApplications(records);
-    });
+    const unsubscribe = subscribeNurseRegistrations(
+      (records) => {
+        setCloudApplications(records);
+        setCloudSyncedOnce(true);
+        setLoading(false);
+      },
+      () => {
+        setError('ไม่สามารถดึงข้อมูลจากฐานข้อมูลคลาวด์ Firebase ได้ กรุณาลองกดรีเฟรชรายการ');
+        setLoading(false);
+      }
+    );
     return unsubscribe;
   }, [isCloudAdmin]);
 
-  const fetchApplications = useCallback(async (allowAuthPrompt = false) => {
+  const fetchApplications = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      if (allowAuthPrompt && auth && authReady && !auth.currentUser) {
-        try {
-          await signInHrWithGoogle();
-        } catch {
-          // Continue loading local records even if sign-in popup is dismissed
-        }
+      const [localList, cloudList] = await Promise.all([
+        listApplicationsApi(),
+        isCloudAdmin ? fetchCloudApplicationsApi() : Promise.resolve(null),
+      ]);
+      setLocalApplications(localList);
+      if (cloudList !== null) {
+        setCloudApplications(cloudList);
+        setCloudSyncedOnce(true);
       }
-      const list = await listApplicationsApi();
-      setLocalApplications(list);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'เกิดข้อผิดพลาดในการโหลดข้อมูล');
     } finally {
       setLoading(false);
     }
-  }, [authReady]);
+  }, [isCloudAdmin]);
 
   useEffect(() => {
     void fetchApplications();
   }, [fetchApplications]);
+
+  const cloudIdSet = useMemo(
+    () => new Set(cloudApplications.map((c) => c.applicationId)),
+    [cloudApplications]
+  );
+
+  const localOnlyApplications = useMemo(
+    () =>
+      isCloudAdmin && cloudSyncedOnce
+        ? localApplications.filter((local) => !cloudIdSet.has(local.applicationId))
+        : [],
+    [isCloudAdmin, cloudSyncedOnce, localApplications, cloudIdSet]
+  );
+
+  const handleSyncLocalToCloud = async () => {
+    if (localOnlyApplications.length === 0) return;
+    setSyncingLocal(true);
+    setError(null);
+    try {
+      for (const rec of localOnlyApplications) {
+        await syncLocalApplicationToCloudApi(rec);
+      }
+      const freshCloud = await fetchCloudApplicationsApi();
+      setCloudApplications(freshCloud);
+    } catch {
+      setError('ไม่สามารถซิงค์ข้อมูลบางรายการขึ้นคลาวด์ได้ กรุณาลองใหม่อีกครั้ง');
+    } finally {
+      setSyncingLocal(false);
+    }
+  };
 
   const applications = useMemo(() => {
     const byId = new Map<string, SubmittedApplicationRecord>();
@@ -179,13 +346,23 @@ export function HrReviewView({ onLogout }: HrReviewViewProps) {
 
   useEffect(() => {
     if (applications.length === 0) {
-      setSelectedId(null);
       setNoteDraft('');
       return;
     }
-    if (!selectedId || !applications.some((a) => a.applicationId === selectedId)) {
-      setSelectedId(applications[0].applicationId);
-      setNoteDraft(applications[0].hrNote || '');
+    const existingSelected = selectedId
+      ? applications.find((a) => a.applicationId === selectedId)
+      : null;
+    if (existingSelected) {
+      setNoteDraft((prev) => (prev === '' && existingSelected.hrNote ? existingSelected.hrNote : prev));
+      return;
+    }
+    const first = applications[0];
+    setSelectedId(first.applicationId);
+    setNoteDraft(first.hrNote || '');
+    try {
+      sessionStorage.setItem(HR_SELECTED_ID_STORAGE_KEY, first.applicationId);
+    } catch {
+      // Ignore storage error
     }
   }, [applications, selectedId]);
 
@@ -204,6 +381,11 @@ export function HrReviewView({ onLogout }: HrReviewViewProps) {
   const handleSelectApp = (app: SubmittedApplicationRecord) => {
     setSelectedId(app.applicationId);
     setNoteDraft(app.hrNote || '');
+    try {
+      sessionStorage.setItem(HR_SELECTED_ID_STORAGE_KEY, app.applicationId);
+    } catch {
+      // Ignore storage error
+    }
   };
 
   const closePreviewModal = () => {
@@ -417,9 +599,40 @@ export function HrReviewView({ onLogout }: HrReviewViewProps) {
           </div>
 
           <div className="flex flex-wrap items-center gap-2.5">
+            {isOwnerAdmin && (
+              <button
+                type="button"
+                onClick={() => setTeamModalOpen(true)}
+                className="btn-lift inline-flex min-h-[42px] items-center gap-2 rounded-xl border border-teal-700/25 bg-teal-50 px-4 py-2 text-sm font-semibold text-teal-900 hover:bg-teal-100 cursor-pointer"
+              >
+                <Users className="h-4 w-4 text-teal-800" />
+                <span>จัดการสิทธิ์ทีม HR</span>
+              </button>
+            )}
+
+            {localOnlyApplications.length > 0 && (
+              <button
+                type="button"
+                disabled={syncingLocal}
+                onClick={() => void handleSyncLocalToCloud()}
+                className="btn-lift inline-flex min-h-[42px] items-center gap-2 rounded-xl border border-sky-700/25 bg-sky-50 px-4 py-2 text-sm font-semibold text-sky-950 hover:bg-sky-100 disabled:opacity-60 cursor-pointer"
+              >
+                {syncingLocal ? (
+                  <Loader2 className="h-4 w-4 animate-spin text-sky-800" />
+                ) : (
+                  <Cloud className="h-4 w-4 text-sky-800" />
+                )}
+                <span>
+                  {syncingLocal
+                    ? 'กำลังซิงค์ขึ้นคลาวด์...'
+                    : `ซิงค์ข้อมูลขึ้นคลาวด์ (${localOnlyApplications.length} รายการ)`}
+                </span>
+              </button>
+            )}
+
             <button
               type="button"
-              onClick={() => void fetchApplications(true)}
+              onClick={() => void fetchApplications()}
               className="btn-lift inline-flex min-h-[42px] items-center gap-2 rounded-xl border border-teal-900/15 bg-white/80 px-4 py-2 text-sm font-medium text-teal-950 hover:bg-white cursor-pointer"
             >
               <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
@@ -437,6 +650,45 @@ export function HrReviewView({ onLogout }: HrReviewViewProps) {
           </div>
         </div>
 
+        {isFirebaseConfigured && authReady && !checkingCloudAdmin && !isCloudAdmin && (
+          <div className="mt-4 flex flex-col gap-3 rounded-2xl border border-sky-300/80 bg-sky-50/90 p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-start gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-sky-600/15 text-sky-800">
+                <Cloud className="h-5 w-5" />
+              </div>
+              <div>
+                <p className="text-sm font-bold text-sky-950">
+                  เชื่อมต่อฐานข้อมูลคลาวด์เพื่อดูข้อมูลใบสมัครจากทุกเบราว์เซอร์และทุกเครื่อง
+                </p>
+                <p className="mt-0.5 text-xs text-sky-900/80">
+                  {firebaseUser
+                    ? `ขณะนี้ลงชื่อเข้าใช้ด้วย ${firebaseUser.email || 'บัญชีอื่น'} (ยังไม่ได้รับสิทธิ์ HR) กรุณาแจ้ง ${BOOTSTRAPPED_ADMIN_EMAIL} เพิ่มอีเมลนี้ใน "จัดการสิทธิ์ทีม HR" หรือสลับบัญชี Google`
+                    : `เข้าสู่ระบบด้วยบัญชี Google ที่ได้รับสิทธิ์ HR (บัญชีหลัก ${BOOTSTRAPPED_ADMIN_EMAIL} หรืออีเมลทีม HR ที่ได้รับอนุมัติแล้ว) เพื่อดึงข้อมูลและเอกสารแนบจากคลาวด์แบบเรียลไทม์`}
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              disabled={signingInCloud}
+              onClick={() => void handleSignInCloud()}
+              className="btn-lift inline-flex min-h-[42px] shrink-0 items-center justify-center gap-2 rounded-xl bg-teal-800 px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-teal-900 disabled:opacity-60 cursor-pointer"
+            >
+              {signingInCloud ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <LogIn className="h-4 w-4" />
+              )}
+              <span>
+                {signingInCloud
+                  ? 'กำลังเชื่อมต่อ...'
+                  : firebaseUser
+                  ? 'สลับบัญชี Google HR'
+                  : 'เข้าสู่ระบบ Google (HR)'}
+              </span>
+            </button>
+          </div>
+        )}
+
         {authWarning && (
           <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
             {authWarning}
@@ -453,14 +705,17 @@ export function HrReviewView({ onLogout }: HrReviewViewProps) {
           </div>
         )}
 
-        {!loading && !error && applications.length === 0 && (
-          <div className="py-12 text-center">
-            <p className="text-base font-medium text-teal-950">ยังไม่มีใบสมัครที่ส่งเข้ามาในระบบ</p>
-            <p className="mt-1 text-sm text-teal-900/70">
-              เมื่อผู้สมัครยื่นใบสมัครออนไลน์ ข้อมูลและไฟล์เอกสารแนบจะแสดงที่นี่โดยอัตโนมัติ
-            </p>
-          </div>
-        )}
+        {!loading &&
+          !error &&
+          applications.length === 0 &&
+          (!isFirebaseConfigured || isCloudAdmin) && (
+            <div className="py-12 text-center">
+              <p className="text-base font-medium text-teal-950">ยังไม่มีใบสมัครที่ส่งเข้ามาในระบบ</p>
+              <p className="mt-1 text-sm text-teal-900/70">
+                เมื่อผู้สมัครยื่นใบสมัครออนไลน์ ข้อมูลและไฟล์เอกสารแนบจะแสดงที่นี่โดยอัตโนมัติ
+              </p>
+            </div>
+          )}
 
         {applications.length > 0 && (
           <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-12">
@@ -827,6 +1082,131 @@ export function HrReviewView({ onLogout }: HrReviewViewProps) {
                     className="h-[74vh] w-full rounded-xl border border-slate-200 bg-white"
                   />
                 ) : null}
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
+
+      {/* HR Team Email Allowlist Management Modal (Owner Only) */}
+      {teamModalOpen &&
+        isOwnerAdmin &&
+        createPortal(
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="hr-team-modal-title"
+            className="no-print fixed inset-0 z-50 flex items-center justify-center bg-teal-950/60 p-4 backdrop-blur-sm"
+          >
+            <div className="animate-fade-scale w-full max-w-lg rounded-3xl border border-teal-900/15 bg-white p-6 shadow-2xl">
+              <div className="flex items-start justify-between gap-3 border-b border-teal-900/10 pb-4">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-teal-100 text-teal-800">
+                    <Users className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h3
+                      id="hr-team-modal-title"
+                      className="font-display text-lg font-bold text-teal-950"
+                    >
+                      จัดการสิทธิ์ทีม HR (อีเมล Google)
+                    </h3>
+                    <p className="text-xs text-teal-900/70">
+                      เพิ่มอีเมล Google ของเจ้าหน้าที่ HR ท่านอื่น เพื่อให้เข้าดู/พิมพ์/ส่งออกข้อมูลได้จากทุกเครื่อง
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setTeamModalOpen(false)}
+                  aria-label="ปิดหน้าต่างจัดการสิทธิ์ทีม HR"
+                  className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-teal-900/15 text-teal-900 hover:bg-rose-50 hover:text-rose-700 cursor-pointer"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+
+              <form onSubmit={(e) => void handleAddHrEmail(e)} className="mt-4 space-y-3">
+                <div>
+                  <label htmlFor="newHrEmailInput" className="block text-xs font-semibold text-teal-950">
+                    อีเมล Google ของเจ้าหน้าที่ HR ที่ต้องการเพิ่ม
+                  </label>
+                  <input
+                    id="newHrEmailInput"
+                    type="email"
+                    required
+                    value={newHrEmail}
+                    onChange={(e) => setNewHrEmail(e.target.value)}
+                    placeholder="เช่น hr.staff@gmail.com"
+                    className="glass-input mt-1 w-full min-h-[42px] rounded-xl px-3 py-2 text-sm text-teal-950"
+                  />
+                </div>
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <input
+                    type="text"
+                    value={newHrLabel}
+                    onChange={(e) => setNewHrLabel(e.target.value)}
+                    placeholder="ชื่อหรือตำแหน่ง (ไม่บังคับ)"
+                    className="glass-input flex-1 min-h-[42px] rounded-xl px-3 py-2 text-sm text-teal-950"
+                  />
+                  <button
+                    type="submit"
+                    disabled={savingTeamMember}
+                    className="btn-lift inline-flex min-h-[42px] items-center justify-center gap-2 rounded-xl bg-teal-800 px-4 py-2 text-xs font-semibold text-white hover:bg-teal-900 disabled:opacity-60 cursor-pointer"
+                  >
+                    {savingTeamMember ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <UserPlus className="h-4 w-4" />
+                    )}
+                    <span>{savingTeamMember ? 'กำลังบันทึก...' : 'เพิ่มสิทธิ์ HR'}</span>
+                  </button>
+                </div>
+              </form>
+
+              {teamError && (
+                <div className="mt-3 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-800">
+                  {teamError}
+                </div>
+              )}
+
+              <div className="mt-5 max-h-60 space-y-2 overflow-y-auto border-t border-teal-900/10 pt-4">
+                <div className="flex items-center justify-between rounded-xl border border-teal-200 bg-teal-50/70 px-3.5 py-2.5 text-xs">
+                  <div>
+                    <p className="font-semibold text-teal-950">{BOOTSTRAPPED_ADMIN_EMAIL}</p>
+                    <p className="text-[11px] text-teal-800">ผู้ดูแลหลัก (ถาวร)</p>
+                  </div>
+                </div>
+
+                {loadingTeam ? (
+                  <p className="py-4 text-center text-xs text-teal-900/60">กำลังโหลดรายชื่อ...</p>
+                ) : hrTeamList.length === 0 ? (
+                  <p className="py-4 text-center text-xs text-teal-900/60">
+                    ยังไม่ได้เพิ่มอีเมลเจ้าหน้าที่ HR ท่านอื่น
+                  </p>
+                ) : (
+                  hrTeamList.map((member) => (
+                    <div
+                      key={member.emailHash}
+                      className="flex items-center justify-between gap-2 rounded-xl border border-teal-900/10 bg-white px-3.5 py-2.5 text-xs"
+                    >
+                      <div className="min-w-0">
+                        <p className="truncate font-semibold text-teal-950">{member.email}</p>
+                        {member.label && (
+                          <p className="truncate text-[11px] text-teal-900/65">{member.label}</p>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => void handleRemoveHrEmail(member.emailHash)}
+                        title="ถอนสิทธิ์อีเมลนี้"
+                        className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-600 hover:text-white cursor-pointer"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  ))
+                )}
               </div>
             </div>
           </div>,

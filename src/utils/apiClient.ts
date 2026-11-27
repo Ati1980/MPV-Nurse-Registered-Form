@@ -1,5 +1,6 @@
 import {
   collection,
+  deleteDoc,
   doc,
   getDoc,
   getDocs,
@@ -7,6 +8,7 @@ import {
   orderBy,
   query,
   serverTimestamp,
+  setDoc,
   writeBatch,
   type Unsubscribe,
 } from 'firebase/firestore';
@@ -30,7 +32,17 @@ import {
 const FALLBACK_STORAGE_KEY = 'mpv_nurse_2570_submitted_records_v1';
 export const NURSE_REGISTER_COLLECTION = 'nurse_register';
 export const NURSE_REGISTER_STATUS_COLLECTION = 'nurse_register_status';
+export const HR_ALLOWLIST_COLLECTION = 'hr_allowlist';
 export const BOOTSTRAPPED_ADMIN_EMAIL = 'kku.tum@gmail.com';
+
+export interface HrAllowlistEntry {
+  emailHash: string;
+  email: string;
+  label?: string;
+  addedByUid: string;
+  addedByEmail: string;
+  createdAt?: unknown;
+}
 
 export interface StatusOnlyApplicationRecord {
   applicationId: string;
@@ -128,9 +140,7 @@ function sha256Fallback(message: string): string {
   return H.map((n) => n.toString(16).padStart(8, '0')).join('');
 }
 
-async function computeMobileHash(applicationId: string, mobileNumber: string): Promise<string> {
-  const cleanPhone = mobileNumber.replace(/[\s-]/g, '');
-  const input = `${applicationId.toUpperCase()}:${cleanPhone}`;
+async function computeSha256Hex(input: string): Promise<string> {
   if (typeof crypto !== 'undefined' && crypto.subtle) {
     const encoded = new TextEncoder().encode(input);
     const digest = await crypto.subtle.digest('SHA-256', encoded);
@@ -139,6 +149,12 @@ async function computeMobileHash(applicationId: string, mobileNumber: string): P
       .join('');
   }
   return sha256Fallback(input);
+}
+
+async function computeMobileHash(applicationId: string, mobileNumber: string): Promise<string> {
+  const cleanPhone = mobileNumber.replace(/[\s-]/g, '');
+  const input = `${applicationId.toUpperCase()}:${cleanPhone}`;
+  return computeSha256Hex(input);
 }
 
 function buildSanitizedFirestoreRecord(record: SubmittedApplicationRecord) {
@@ -217,7 +233,7 @@ function buildSanitizedFirestoreRecord(record: SubmittedApplicationRecord) {
       lineId: clampStr(p.lineId, 80),
       permanentAddress: clampStr(p.permanentAddress, 500),
       permanentLandLine: clampStr(p.permanentLandLine, 30),
-      presentAddress: clampStr(p.presentAddress, 500),
+      presentAddress: clampStr(p.presentAddress || p.permanentAddress, 500),
       presentLandLine: clampStr(p.presentLandLine, 30),
       sameAsPermanent: Boolean(p.sameAsPermanent),
     },
@@ -265,14 +281,16 @@ export async function submitApplicationApi(
           application?: SubmittedApplicationRecord;
           error?: string;
         };
-        if (!response.ok || !result.application) {
+        if (response.ok && result.application) {
+          serverRecord = result.application;
+        } else if (!db) {
           throw new Error(result.error || 'เกิดข้อผิดพลาดในการบันทึกใบสมัคร');
         }
-        serverRecord = result.application;
       }
     }
   } catch (err) {
     if (
+      !db &&
       err instanceof Error &&
       !err.message.includes('Failed to fetch') &&
       !err.message.includes('NetworkError')
@@ -639,19 +657,245 @@ export async function checkFirestoreHrAdmin(
   email: string | null | undefined,
   emailVerified: boolean | undefined
 ): Promise<boolean> {
-  if (!emailVerified) return false;
+  if (!emailVerified || !email) return false;
   if (isVerifiedBootstrappedAdmin(email, emailVerified)) return true;
   if (!db) return false;
+
   try {
     const adminSnap = await getDoc(doc(db, 'admins', uid));
-    return adminSnap.exists();
+    if (adminSnap.exists()) return true;
+  } catch {
+    // Continue checking hr_allowlist
+  }
+
+  const normalizedEmail = email.trim().toLowerCase();
+  const emailHash = await computeSha256Hex(normalizedEmail);
+  const allowPath = `${HR_ALLOWLIST_COLLECTION}/${emailHash}`;
+  try {
+    const allowSnap = await getDoc(doc(db, HR_ALLOWLIST_COLLECTION, emailHash));
+    return allowSnap.exists();
   } catch (error) {
-    handleFirestoreError(error, OperationType.GET, `admins/${uid}`);
+    handleFirestoreError(error, OperationType.GET, allowPath);
+  }
+}
+
+export async function listAuthorizedHrEmailsApi(): Promise<HrAllowlistEntry[]> {
+  if (!db) return [];
+  const q = query(collection(db, HR_ALLOWLIST_COLLECTION), orderBy('createdAt', 'desc'));
+  try {
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map((d) => d.data() as HrAllowlistEntry);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.LIST, HR_ALLOWLIST_COLLECTION);
+  }
+}
+
+export async function addAuthorizedHrEmailApi(
+  emailInput: string,
+  labelInput = ''
+): Promise<HrAllowlistEntry> {
+  if (!db || !auth?.currentUser) {
+    throw new Error('กรุณาเข้าสู่ระบบบัญชีผู้ดูแลหลักก่อน');
+  }
+  const normalizedEmail = emailInput.trim().toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail) || normalizedEmail.length > 150) {
+    throw new Error('รูปแบบอีเมลไม่ถูกต้อง');
+  }
+  if (normalizedEmail === BOOTSTRAPPED_ADMIN_EMAIL.toLowerCase()) {
+    throw new Error('บัญชีหลักนี้มีสิทธิ์ผู้ดูแล HR อยู่แล้ว');
+  }
+
+  const emailHash = await computeSha256Hex(normalizedEmail);
+  const path = `${HR_ALLOWLIST_COLLECTION}/${emailHash}`;
+  const cleanLabel = clampStr(labelInput, 120);
+  const entry: HrAllowlistEntry = {
+    emailHash,
+    email: normalizedEmail,
+    ...(cleanLabel ? { label: cleanLabel } : {}),
+    addedByUid: auth.currentUser.uid,
+    addedByEmail: auth.currentUser.email || BOOTSTRAPPED_ADMIN_EMAIL,
+  };
+
+  try {
+    await setDoc(doc(db, HR_ALLOWLIST_COLLECTION, emailHash), {
+      ...entry,
+      createdAt: serverTimestamp(),
+    });
+    return entry;
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, path);
+  }
+}
+
+export async function removeAuthorizedHrEmailApi(emailHash: string): Promise<void> {
+  if (!db) return;
+  const path = `${HR_ALLOWLIST_COLLECTION}/${emailHash}`;
+  try {
+    await deleteDoc(doc(db, HR_ALLOWLIST_COLLECTION, emailHash));
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, path);
+  }
+}
+
+export async function fetchCloudApplicationsApi(): Promise<SubmittedApplicationRecord[]> {
+  if (!db) return [];
+  const q = query(
+    collection(db, NURSE_REGISTER_COLLECTION),
+    orderBy('createdAt', 'desc')
+  );
+  try {
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map((d) => {
+      const raw = d.data() as SubmittedApplicationRecord;
+      return {
+        ...raw,
+        applicationId: raw.applicationId || d.id,
+      };
+    });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.LIST, NURSE_REGISTER_COLLECTION);
+  }
+}
+
+export async function syncLocalApplicationToCloudApi(
+  record: SubmittedApplicationRecord
+): Promise<void> {
+  if (!db) {
+    throw new Error('ยังไม่ได้เชื่อมต่อฐานข้อมูล Firebase');
+  }
+  const firestoreDb = db;
+  const firestoreData = buildSanitizedFirestoreRecord(record);
+  const mobileHash = await computeMobileHash(
+    firestoreData.applicationId,
+    firestoreData.personalInfo.mobileNumber
+  );
+
+  const registerPath = `${NURSE_REGISTER_COLLECTION}/${firestoreData.applicationId}`;
+  const statusPath = `${NURSE_REGISTER_STATUS_COLLECTION}/${firestoreData.applicationId}`;
+
+  try {
+    const mainBatch = writeBatch(firestoreDb);
+    mainBatch.set(doc(firestoreDb, NURSE_REGISTER_COLLECTION, firestoreData.applicationId), {
+      ...firestoreData,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+    mainBatch.set(doc(firestoreDb, NURSE_REGISTER_STATUS_COLLECTION, firestoreData.applicationId), {
+      applicationId: firestoreData.applicationId,
+      status: firestoreData.status,
+      submittedAt: firestoreData.submittedAt,
+      mobileHash,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+    await mainBatch.commit();
+
+    const CHUNK_SIZE = 700_000;
+    const MAX_BATCH_CHARS = 1_500_000;
+    const fileWrites: Array<{
+      docId: string;
+      payload: {
+        id: string;
+        applicationId: string;
+        slotKey: string;
+        fileName: string;
+        mimeType: string;
+        sizeBytes: number;
+        dataUrl: string;
+        chunkIndex: number;
+        chunkCount: number;
+        createdAt: ReturnType<typeof serverTimestamp>;
+      };
+    }> = [];
+
+    for (const origDoc of record.documents || []) {
+      const safeDocId = origDoc.id.replace(/[^a-zA-Z0-9_-]/g, '-');
+      if (!safeDocId) continue;
+      let dataUrl = origDoc.dataUrl;
+      if (!dataUrl || !dataUrl.startsWith('data:')) {
+        const idbFile = await loadSubmittedFileFromIdb(record.applicationId, origDoc.id);
+        if (idbFile?.dataUrl) {
+          dataUrl = idbFile.dataUrl;
+        }
+      }
+      if ((!dataUrl || !dataUrl.startsWith('data:')) && origDoc.fileUrl) {
+        try {
+          const res = await fetch(origDoc.fileUrl);
+          const contentType = res.headers.get('content-type') || '';
+          if (res.ok && !contentType.includes('text/html') && !contentType.includes('application/json')) {
+            const blob = await res.blob();
+            dataUrl = await new Promise<string>((resolve) => {
+              const reader = new FileReader();
+              reader.onload = () => resolve(String(reader.result || ''));
+              reader.onerror = () => resolve('');
+              reader.readAsDataURL(blob);
+            });
+          }
+        } catch {
+          // Ignore unavailable file
+        }
+      }
+
+      if (dataUrl && dataUrl.startsWith('data:')) {
+        const chunkCount = Math.max(1, Math.ceil(dataUrl.length / CHUNK_SIZE));
+        for (let chunkIndex = 0; chunkIndex < chunkCount; chunkIndex += 1) {
+          const slice = dataUrl.slice(chunkIndex * CHUNK_SIZE, (chunkIndex + 1) * CHUNK_SIZE);
+          const chunkDocId = chunkIndex === 0 ? safeDocId : `${safeDocId}__c${chunkIndex}`;
+          fileWrites.push({
+            docId: chunkDocId,
+            payload: {
+              id: chunkDocId,
+              applicationId: firestoreData.applicationId,
+              slotKey: clampStr(origDoc.slotKey, 40) || 'other',
+              fileName: clampStr(origDoc.fileName, 255) || 'document',
+              mimeType: clampStr(origDoc.mimeType, 100) || 'application/octet-stream',
+              sizeBytes: Math.max(0, Math.min(15_000_000, Number(origDoc.sizeBytes) || 0)),
+              dataUrl: slice,
+              chunkIndex,
+              chunkCount,
+              createdAt: serverTimestamp(),
+            },
+          });
+        }
+      }
+    }
+
+    if (fileWrites.length > 0) {
+      let currentBatch = writeBatch(firestoreDb);
+      let currentBatchChars = 0;
+      let currentBatchCount = 0;
+
+      for (const item of fileWrites) {
+        const itemChars = item.payload.dataUrl.length;
+        if (
+          currentBatchCount > 0 &&
+          (currentBatchChars + itemChars > MAX_BATCH_CHARS || currentBatchCount >= 2)
+        ) {
+          await currentBatch.commit();
+          currentBatch = writeBatch(firestoreDb);
+          currentBatchChars = 0;
+          currentBatchCount = 0;
+        }
+        currentBatch.set(
+          doc(firestoreDb, NURSE_REGISTER_COLLECTION, firestoreData.applicationId, 'files', item.docId),
+          item.payload
+        );
+        currentBatchChars += itemChars;
+        currentBatchCount += 1;
+      }
+
+      if (currentBatchCount > 0) {
+        await currentBatch.commit();
+      }
+    }
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, `${registerPath} & ${statusPath}`);
   }
 }
 
 export function subscribeNurseRegistrations(
-  onData: (records: SubmittedApplicationRecord[]) => void
+  onData: (records: SubmittedApplicationRecord[]) => void,
+  onError?: (err: Error) => void
 ): Unsubscribe {
   if (!db) return () => {};
   const q = query(
@@ -671,7 +915,13 @@ export function subscribeNurseRegistrations(
       onData(records);
     },
     (error) => {
-      handleFirestoreError(error, OperationType.GET, NURSE_REGISTER_COLLECTION);
+      try {
+        handleFirestoreError(error, OperationType.LIST, NURSE_REGISTER_COLLECTION);
+      } catch (wrapped) {
+        if (onError) {
+          onError(wrapped instanceof Error ? wrapped : new Error(String(wrapped)));
+        }
+      }
     }
   );
 }
@@ -908,17 +1158,15 @@ export async function deleteApplicationApi(
       docIds.map((id) => id.replace(/[^a-zA-Z0-9_-]/g, '-')).filter(Boolean)
     );
 
-    if (isVerifiedBootstrappedAdmin(auth.currentUser.email, auth.currentUser.emailVerified)) {
-      try {
-        const filesSnap = await getDocs(
-          collection(db, NURSE_REGISTER_COLLECTION, applicationId, 'files')
-        );
-        filesSnap.forEach((fileDoc) => {
-          fileIds.add(fileDoc.id);
-        });
-      } catch {
-        // Fallback to deleting known docIds if subcollection list fails
-      }
+    try {
+      const filesSnap = await getDocs(
+        collection(db, NURSE_REGISTER_COLLECTION, applicationId, 'files')
+      );
+      filesSnap.forEach((fileDoc) => {
+        fileIds.add(fileDoc.id);
+      });
+    } catch {
+      // Fallback to deleting known docIds if subcollection list fails
     }
 
     const deletePath = `${NURSE_REGISTER_COLLECTION}/${applicationId}`;
